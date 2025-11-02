@@ -139,7 +139,7 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12 sm:mb-16 px-4">
             <Link
-              href="/dashboard"
+              href="/onboarding"
               className="group relative w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-bold text-base sm:text-lg hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 sm:gap-3"
             >
               <span>Commencer gratuitement</span>
@@ -282,7 +282,7 @@ export default function HomePage() {
             </ul>
 
             <Link
-              href="/dashboard"
+              href="/onboarding"
               className="inline-block px-8 sm:px-12 py-4 sm:py-5 bg-white text-purple-600 rounded-full font-black text-lg sm:text-xl hover:shadow-2xl transition-all duration-300 hover:scale-110"
             >
               Commencer maintenant 🚀
@@ -299,7 +299,7 @@ export default function HomePage() {
           </h2>
           
           <Link
-            href="/dashboard"
+            href="/onboarding"
             className="inline-block group relative px-10 sm:px-16 py-5 sm:py-6 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-black text-xl sm:text-2xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 hover:scale-110"
           >
             <span className="flex items-center gap-2 sm:gap-3">
