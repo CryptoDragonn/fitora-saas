@@ -12,7 +12,8 @@ import {
   Apple,
   Flame,
   Crown,
-  Sparkles
+  Sparkles,
+  Heart
 } from 'lucide-react'
 
 const menuItems = [
@@ -23,14 +24,15 @@ const menuItems = [
       { name: 'Dashboard de suivi', icon: TrendingUp, href: '/dashboard/suivi' }
     ]
   },
-  {
-    title: 'PROGRESSION',
-    items: [
-      { name: 'Mon plan d\'action', icon: TrendingUp, href: '/dashboard/progression' },
-      { name: 'Nutrition', icon: Apple, href: '/dashboard/nutrition' },
-      { name: 'Exercices', icon: Dumbbell, href: '/dashboard/exercices' }
-    ]
-  }
+{
+  title: 'PROGRESSION',
+  items: [
+    { name: 'Entraînement & Suivi', icon: Dumbbell, href: '/dashboard/training' },
+    { name: 'Nutrition', icon: Apple, href: '/dashboard/nutrition' },
+    { name: 'Santé & Bien-être', icon: Heart, href: '/dashboard/wellness' },
+    { name: 'Exercices', icon: Dumbbell, href: '/dashboard/exercices' }
+  ]
+}
 ]
 
 export default function DashboardLayout({
