@@ -14,7 +14,8 @@ import {
   Heart,
   Sparkles,
   Menu,
-  X
+  X,
+  Settings
 } from 'lucide-react'
 
 const menuItems = [
@@ -67,7 +68,7 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Sidebar - RÉDUITE */}
+      {/* Sidebar */}
       <aside className={`
         fixed lg:relative
         w-64 h-full
@@ -80,7 +81,7 @@ export default function DashboardLayout({
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         
-        {/* Logo - Plus compact */}
+        {/* Logo */}
         <div className="p-4 border-b border-white/10">
           <Link href="/" className="flex items-center gap-2 group">
             <div className="relative">
@@ -96,7 +97,7 @@ export default function DashboardLayout({
           </Link>
         </div>
 
-        {/* Menu - SANS Premium et Aujourd'hui */}
+        {/* Menu */}
         <nav className="flex-1 p-3 overflow-y-auto">
           {menuItems.map((section) => (
             <div key={section.title} className="mb-6">
@@ -133,7 +134,26 @@ export default function DashboardLayout({
           ))}
         </nav>
 
-        {/* User section - Plus compact */}
+        {/* Settings Link */}
+        <div className="px-3 pb-3">
+          <Link
+            href="/dashboard/settings"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`group flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all ${
+              pathname === '/dashboard/settings'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                : 'text-purple-200 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <Settings className={`w-4 h-4 ${pathname === '/dashboard/settings' ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
+            <span className="text-sm font-semibold">Paramètres</span>
+            {pathname === '/dashboard/settings' && (
+              <div className="ml-auto w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+            )}
+          </Link>
+        </div>
+
+        {/* User section */}
         <div className="p-3 border-t border-white/10 bg-black/20">
           <div className="flex items-center gap-2 mb-3 p-2 bg-white/5 rounded-lg backdrop-blur border border-white/10">
             <div className="relative">
