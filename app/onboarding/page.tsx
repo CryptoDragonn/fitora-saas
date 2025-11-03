@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useUser } from '../contexts/UserContext'
+import { supabase } from '@/lib/supabase'
 import { 
   Target,
   TrendingDown,
@@ -15,15 +15,18 @@ import {
   Ruler,
   Calendar,
   Scale,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react'
 
 type Goal = 'lose_weight' | 'gain_muscle' | 'maintain'
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { completeOnboarding } = useUser()
   const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  
   const [formData, setFormData] = useState({
     goal: '' as Goal | '',
     currentWeight: '',
@@ -33,6 +36,39 @@ export default function OnboardingPage() {
     gender: '' as 'male' | 'female' | 'other' | ''
   })
   const [weightError, setWeightError] = useState('')
+  const [isWeightValid, setIsWeightValid] = useState(false)
+
+  // Récupérer l'utilisateur au chargement
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+        await loadExistingData(user.id)
+      }
+    }
+    getUser()
+  }, [])
+
+  // Charger les données existantes
+  const loadExistingData = async (uid: string) => {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .single()
+
+    if (data && !error) {
+      setFormData({
+        goal: data.goal || '',
+        currentWeight: data.current_weight?.toString() || '',
+        targetWeight: data.target_weight?.toString() || '',
+        height: data.height?.toString() || '',
+        age: data.age?.toString() || '',
+        gender: data.gender || ''
+      })
+    }
+  }
 
   const goals = [
     {
@@ -46,7 +82,7 @@ export default function OnboardingPage() {
     {
       id: 'gain_muscle' as Goal,
       title: 'Prendre du muscle',
-      description: 'Développer votre masse musculaire',
+      description: 'Développer ta masse musculaire',
       icon: TrendingUp,
       color: 'from-blue-500 to-cyan-500',
       emoji: '💪'
@@ -61,299 +97,346 @@ export default function OnboardingPage() {
     }
   ]
 
-  // Validation des poids selon l'objectif
-  const validateWeights = () => {
+  // Validation avec useEffect
+  useEffect(() => {
+    if (!formData.goal || !formData.currentWeight || !formData.targetWeight) {
+      setWeightError('')
+      setIsWeightValid(false)
+      return
+    }
+
     const current = parseFloat(formData.currentWeight)
     const target = parseFloat(formData.targetWeight)
 
-    if (!current || !target) {
+    if (isNaN(current) || isNaN(target)) {
       setWeightError('')
-      return false
+      setIsWeightValid(false)
+      return
     }
 
-    // Validation selon l'objectif
+    if (current < 30 || current > 300) {
+      setWeightError('⚠️ Poids actuel en dehors de la plage valide (30-300kg)')
+      setIsWeightValid(false)
+      return
+    }
+
+    if (target < 30 || target > 300) {
+      setWeightError('⚠️ Poids cible en dehors de la plage valide (30-300kg)')
+      setIsWeightValid(false)
+      return
+    }
+
     if (formData.goal === 'lose_weight' && target >= current) {
       setWeightError('❌ Pour perdre du poids, ton objectif doit être inférieur à ton poids actuel')
-      return false
+      setIsWeightValid(false)
+      return
     }
 
     if (formData.goal === 'gain_muscle' && target <= current) {
       setWeightError('❌ Pour prendre du muscle, ton objectif doit être supérieur à ton poids actuel')
-      return false
+      setIsWeightValid(false)
+      return
     }
 
     if (formData.goal === 'maintain' && Math.abs(target - current) > 2) {
       setWeightError('⚠️ Pour maintenir, ton objectif devrait être proche de ton poids actuel (±2kg)')
-      return false
-    }
-
-    // Vérifications de sécurité
-    if (Math.abs(target - current) > 50) {
-      setWeightError('⚠️ Cette différence de poids est très importante. Consulte un professionnel de santé.')
-      return false
-    }
-
-    if (target < 40 || target > 200) {
-      setWeightError('⚠️ Poids cible en dehors de la plage recommandée (40-200kg)')
-      return false
+      setIsWeightValid(false)
+      return
     }
 
     setWeightError('')
-    return true
-  }
+    setIsWeightValid(true)
+  }, [formData.goal, formData.currentWeight, formData.targetWeight])
 
-  const handleSubmit = () => {
-    if (!validateWeights()) return
-
-    completeOnboarding({
-      goal: formData.goal as Goal,
-      currentWeight: parseFloat(formData.currentWeight),
-      targetWeight: parseFloat(formData.targetWeight),
-      height: parseFloat(formData.height),
-      age: parseInt(formData.age),
-      gender: formData.gender as 'male' | 'female' | 'other'
-    })
-    router.push('/dashboard')
-  }
-
-  const canGoNext = () => {
-    if (step === 1) return formData.goal !== ''
-    if (step === 2) {
-      return formData.currentWeight !== '' && 
-             formData.targetWeight !== '' && 
-             validateWeights()
+  const handleGoalSelect = async (goal: Goal) => {
+    setFormData(prev => ({ ...prev, goal }))
+    
+    if (userId) {
+      await saveToSupabase({ goal })
     }
-    if (step === 3) return formData.height !== '' && formData.age !== '' && formData.gender !== ''
-    return false
+    
+    setStep(2)
   }
 
-  // Calculer la différence de poids
-  const getWeightDifference = () => {
-    const current = parseFloat(formData.currentWeight)
-    const target = parseFloat(formData.targetWeight)
-    
-    if (!current || !target) return null
-
-    const diff = Math.abs(target - current)
-    const isGaining = target > current
-    const isLosing = target < current
-    
-    return { diff, isGaining, isLosing }
+  const handleInputChange = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  const weightDiff = getWeightDifference()
+  // Sauvegarder dans Supabase
+  const saveToSupabase = async (dataToSave: Partial<typeof formData>) => {
+    if (!userId) return
+
+    const dbData: any = {
+      user_id: userId,
+      updated_at: new Date().toISOString()
+    }
+
+    if (dataToSave.goal) dbData.goal = dataToSave.goal
+    if (dataToSave.currentWeight) dbData.current_weight = parseFloat(dataToSave.currentWeight)
+    if (dataToSave.targetWeight) dbData.target_weight = parseFloat(dataToSave.targetWeight)
+    if (dataToSave.height) dbData.height = parseFloat(dataToSave.height)
+    if (dataToSave.age) dbData.age = parseInt(dataToSave.age)
+    if (dataToSave.gender) dbData.gender = dataToSave.gender
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert(dbData, { onConflict: 'user_id' })
+
+    if (error) {
+      console.error('❌ Erreur sauvegarde profil:', error)
+    } else {
+      console.log('✅ Profil sauvegardé')
+    }
+  }
+
+  const handleNext = async () => {
+    if (step === 2 && isWeightValid) {
+      await saveToSupabase({
+        currentWeight: formData.currentWeight,
+        targetWeight: formData.targetWeight
+      })
+      setStep(3)
+    }
+  }
+
+  const handleComplete = async () => {
+    setLoading(true)
+    
+    try {
+      // Sauvegarder toutes les données finales
+      await saveToSupabase({
+        height: formData.height,
+        age: formData.age,
+        gender: formData.gender
+      })
+
+      // Marquer l'onboarding comme complété
+      await supabase
+        .from('user_profiles')
+        .update({ 
+          onboarding_completed: true,
+          completed_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+
+      // 🆕 CRÉER LA PREMIÈRE PESÉE dans weight_history
+      console.log('📊 Création de la pesée initiale:', formData.currentWeight, 'kg')
+      
+      const { error: weightError } = await supabase
+        .from('weight_history')
+        .insert({
+          user_id: userId,
+          weight: parseFloat(formData.currentWeight),
+          date: new Date().toISOString().split('T')[0],
+          notes: 'Poids initial (onboarding)'
+        })
+
+      if (weightError) {
+        console.error('❌ Erreur création pesée initiale:', weightError)
+      } else {
+        console.log('✅ Pesée initiale créée avec succès')
+      }
+
+      // Rediriger vers le dashboard
+      router.push('/dashboard')
+    } catch (error) {
+      console.error('❌ Erreur lors de la finalisation:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const canProceedStep2 = formData.currentWeight && formData.targetWeight && isWeightValid
+  const canProceedStep3 = formData.height && formData.age && formData.gender
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-gray-900 flex items-center justify-center p-4">
-      <div className="max-w-4xl w-full">
-        
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-pink-900 flex items-center justify-center p-3 sm:p-4">
+      <div className="w-full max-w-2xl">
         {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-white font-semibold">Étape {step} sur 3</p>
-            <p className="text-purple-300">{Math.round((step / 3) * 100)}%</p>
+        <div className="mb-4 sm:mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs sm:text-sm font-medium text-white/70">Étape {step}/3</span>
+            <span className="text-xs sm:text-sm font-medium text-white/70">{Math.round((step / 3) * 100)}%</span>
           </div>
-          <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+          <div className="h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-500 ease-out"
               style={{ width: `${(step / 3) * 100}%` }}
-            ></div>
+            />
           </div>
         </div>
 
-        {/* Content Card */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 sm:p-12 border border-white/20">
-          
-          {/* STEP 1: Goal Selection */}
+        {/* Card */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl border border-white/20">
+          {/* Step 1: Goal Selection */}
           {step === 1 && (
-            <div className="animate-fadeIn">
-              <div className="text-center mb-8">
-                <Target className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-                <h1 className="text-4xl sm:text-5xl font-black text-white mb-4">
-                  Quel est ton objectif ?
-                </h1>
-                <p className="text-xl text-purple-200">
-                  Choisis ce qui te correspond le mieux
-                </p>
+            <div className="space-y-6 sm:space-y-8">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-pink-500 to-purple-500 rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                  <Target className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">Quel est ton objectif ?</h1>
+                <p className="text-sm sm:text-base text-white/70">Choisis ce qui te correspond le mieux</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {goals.map((goal) => (
-                  <button
-                    key={goal.id}
-                    onClick={() => {
-                      setFormData({ ...formData, goal: goal.id })
-                      setWeightError('')
-                    }}
-                    className={`p-8 rounded-2xl border-4 transition-all hover:scale-105 ${
-                      formData.goal === goal.id
-                        ? `border-purple-500 bg-gradient-to-br ${goal.color} bg-opacity-20`
-                        : 'border-white/20 hover:border-white/40 bg-white/5'
-                    }`}
-                  >
-                    <div className="text-6xl mb-4">{goal.emoji}</div>
-                    <h3 className="text-2xl font-bold text-white mb-2">{goal.title}</h3>
-                    <p className="text-purple-200">{goal.description}</p>
-                  </button>
-                ))}
+              <div className="grid gap-3 sm:gap-4">
+                {goals.map((goal) => {
+                  const Icon = goal.icon
+                  return (
+                    <button
+                      key={goal.id}
+                      onClick={() => handleGoalSelect(goal.id)}
+                      className="group relative bg-white/5 active:bg-white/15 sm:hover:bg-white/10 border-2 border-white/10 sm:hover:border-white/30 rounded-xl sm:rounded-2xl p-4 sm:p-6 transition-all duration-300 text-left overflow-hidden"
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-r ${goal.color} opacity-0 group-hover:opacity-10 group-active:opacity-20 transition-opacity`} />
+                      <div className="relative flex items-center gap-3 sm:gap-4">
+                        <div className={`w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br ${goal.color} rounded-lg sm:rounded-xl flex items-center justify-center text-xl sm:text-2xl flex-shrink-0`}>
+                          {goal.emoji}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg sm:text-xl font-bold text-white mb-0.5 sm:mb-1">{goal.title}</h3>
+                          <p className="text-white/60 text-xs sm:text-sm">{goal.description}</p>
+                        </div>
+                        <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 text-white/40 group-hover:text-white/80 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
 
-          {/* STEP 2: Weight */}
+          {/* Step 2: Weight */}
           {step === 2 && (
-            <div className="animate-fadeIn">
-              <div className="text-center mb-8">
-                <Scale className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-                <h1 className="text-4xl sm:text-5xl font-black text-white mb-4">
-                  Tes objectifs de poids
-                </h1>
-                <p className="text-xl text-purple-200">
-                  Aide-nous à personnaliser ton programme
-                </p>
+            <div className="space-y-6 sm:space-y-8">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-pink-500 to-purple-500 rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                  <Scale className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">Ton poids</h1>
+                <p className="text-sm sm:text-base text-white/70">Définis ton point de départ et ton objectif</p>
               </div>
 
-              <div className="max-w-2xl mx-auto space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <label className="block text-white font-bold mb-3 text-lg">
+                  <label className="block text-white font-medium mb-2 text-sm sm:text-base">
                     Poids actuel (kg)
                   </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formData.currentWeight}
-                    onChange={(e) => {
-                      setFormData({ ...formData, currentWeight: e.target.value })
-                      setWeightError('')
-                    }}
-                    onBlur={validateWeights}
-                    placeholder="75"
-                    className="w-full px-6 py-4 bg-white/10 border-2 border-white/20 rounded-xl text-white text-2xl font-bold placeholder-white/30 focus:outline-none focus:border-purple-500 transition"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={formData.currentWeight}
+                      onChange={(e) => handleInputChange('currentWeight', e.target.value)}
+                      placeholder="75"
+                      className="w-full bg-white/5 border-2 border-white/10 focus:border-purple-500 rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-white/30 outline-none transition-all text-base sm:text-lg"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 text-sm sm:text-base">kg</span>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-white font-bold mb-3 text-lg">
+                  <label className="block text-white font-medium mb-2 text-sm sm:text-base">
                     Poids cible (kg)
                   </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formData.targetWeight}
-                    onChange={(e) => {
-                      setFormData({ ...formData, targetWeight: e.target.value })
-                      setWeightError('')
-                    }}
-                    onBlur={validateWeights}
-                    placeholder={
-                      formData.goal === 'lose_weight' ? '70 (inférieur)' :
-                      formData.goal === 'gain_muscle' ? '80 (supérieur)' :
-                      '75 (similaire)'
-                    }
-                    className="w-full px-6 py-4 bg-white/10 border-2 border-white/20 rounded-xl text-white text-2xl font-bold placeholder-white/30 focus:outline-none focus:border-purple-500 transition"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={formData.targetWeight}
+                      onChange={(e) => handleInputChange('targetWeight', e.target.value)}
+                      placeholder="70"
+                      className="w-full bg-white/5 border-2 border-white/10 focus:border-purple-500 rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-white/30 outline-none transition-all text-base sm:text-lg"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 text-sm sm:text-base">kg</span>
+                  </div>
                 </div>
 
-                {/* Error Message */}
                 {weightError && (
-                  <div className="bg-red-500/20 border-2 border-red-400 rounded-xl p-4 flex items-start gap-3">
-                    <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-red-200 font-semibold">{weightError}</p>
+                  <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-red-200 text-xs sm:text-sm leading-relaxed">{weightError}</p>
                   </div>
                 )}
 
-                {/* Success Display */}
-                {weightDiff && !weightError && formData.currentWeight && formData.targetWeight && (
-                  <div className={`border-2 rounded-xl p-6 text-center ${
-                    formData.goal === 'lose_weight' ? 'bg-orange-500/20 border-orange-400' :
-                    formData.goal === 'gain_muscle' ? 'bg-blue-500/20 border-blue-400' :
-                    'bg-green-500/20 border-green-400'
-                  }`}>
-                    <p className={`mb-2 ${
-                      formData.goal === 'lose_weight' ? 'text-orange-200' :
-                      formData.goal === 'gain_muscle' ? 'text-blue-200' :
-                      'text-green-200'
-                    }`}>Objectif</p>
-                    <p className="text-4xl font-black text-white mb-2">
-                      {weightDiff.diff.toFixed(1)} kg
-                    </p>
-                    <p className={`font-semibold ${
-                      formData.goal === 'lose_weight' ? 'text-orange-300' :
-                      formData.goal === 'gain_muscle' ? 'text-blue-300' :
-                      'text-green-300'
-                    }`}>
-                      à {
-                        formData.goal === 'lose_weight' ? 'perdre 🔥' :
-                        formData.goal === 'gain_muscle' ? 'gagner 💪' :
-                        'maintenir ⚖️'
-                      }
+                {isWeightValid && !weightError && (
+                  <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-green-200 text-xs sm:text-sm leading-relaxed">
+                      Parfait ! Tu veux {formData.goal === 'lose_weight' ? 'perdre' : 'prendre'}{' '}
+                      {Math.abs(parseFloat(formData.targetWeight) - parseFloat(formData.currentWeight)).toFixed(1)} kg
                     </p>
                   </div>
                 )}
+              </div>
 
-                {/* Hints */}
-                <div className="bg-blue-500/10 border border-blue-400/30 rounded-xl p-4">
-                  <p className="text-blue-200 text-sm">
-                    💡 <strong>Conseil :</strong> {
-                      formData.goal === 'lose_weight' 
-                        ? 'Une perte de 0.5-1kg par semaine est idéale et durable.'
-                        : formData.goal === 'gain_muscle'
-                        ? 'Une prise de 0.25-0.5kg par semaine est optimale pour du muscle.'
-                        : 'Vise à rester dans une fourchette de ±2kg.'
-                    }
-                  </p>
-                </div>
+              <div className="flex gap-3 sm:gap-4">
+                <button
+                  onClick={() => setStep(1)}
+                  className="flex-1 bg-white/5 active:bg-white/15 sm:hover:bg-white/10 border border-white/10 text-white px-4 sm:px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
+                >
+                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Retour
+                </button>
+                <button
+                  onClick={handleNext}
+                  disabled={!canProceedStep2}
+                  className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 active:from-pink-600 active:to-purple-600 sm:hover:from-pink-600 sm:hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 sm:px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
+                >
+                  Continuer
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
               </div>
             </div>
           )}
 
-          {/* STEP 3: Personal Info */}
+          {/* Step 3: Additional Info */}
           {step === 3 && (
-            <div className="animate-fadeIn">
-              <div className="text-center mb-8">
-                <User className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-                <h1 className="text-4xl sm:text-5xl font-black text-white mb-4">
-                  Dernières informations
-                </h1>
-                <p className="text-xl text-purple-200">
-                  Pour des recommandations précises
-                </p>
+            <div className="space-y-6 sm:space-y-8">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-pink-500 to-purple-500 rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                  <User className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">Informations personnelles</h1>
+                <p className="text-sm sm:text-base text-white/70">Pour personnaliser ton plan</p>
               </div>
 
-              <div className="max-w-2xl mx-auto space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <label className="block text-white font-bold mb-3 text-lg flex items-center gap-2">
-                    <Ruler className="w-5 h-5" />
+                  <label className="block text-white font-medium mb-2 flex items-center gap-2 text-sm sm:text-base">
+                    <Ruler className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     Taille (cm)
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={formData.height}
-                    onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                    onChange={(e) => handleInputChange('height', e.target.value)}
                     placeholder="175"
-                    className="w-full px-6 py-4 bg-white/10 border-2 border-white/20 rounded-xl text-white text-2xl font-bold placeholder-white/30 focus:outline-none focus:border-purple-500 transition"
+                    className="w-full bg-white/5 border-2 border-white/10 focus:border-purple-500 rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-white/30 outline-none transition-all text-base sm:text-lg"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-white font-bold mb-3 text-lg flex items-center gap-2">
-                    <Calendar className="w-5 h-5" />
+                  <label className="block text-white font-medium mb-2 flex items-center gap-2 text-sm sm:text-base">
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     Âge
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={formData.age}
-                    onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                    placeholder="30"
-                    className="w-full px-6 py-4 bg-white/10 border-2 border-white/20 rounded-xl text-white text-2xl font-bold placeholder-white/30 focus:outline-none focus:border-purple-500 transition"
+                    onChange={(e) => handleInputChange('age', e.target.value)}
+                    placeholder="25"
+                    className="w-full bg-white/5 border-2 border-white/10 focus:border-purple-500 rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-white/30 outline-none transition-all text-base sm:text-lg"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-white font-bold mb-3 text-lg">
+                  <label className="block text-white font-medium mb-2 text-sm sm:text-base">
                     Genre
                   </label>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     {[
                       { value: 'male', label: 'Homme', emoji: '👨' },
                       { value: 'female', label: 'Femme', emoji: '👩' },
@@ -361,66 +444,50 @@ export default function OnboardingPage() {
                     ].map((option) => (
                       <button
                         key={option.value}
-                        onClick={() => setFormData({ ...formData, gender: option.value as any })}
-                        className={`p-6 rounded-xl border-2 transition-all hover:scale-105 ${
+                        onClick={() => handleInputChange('gender', option.value)}
+                        className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${
                           formData.gender === option.value
-                            ? 'border-purple-500 bg-purple-500/20'
-                            : 'border-white/20 bg-white/5 hover:border-white/40'
+                            ? 'bg-purple-500/20 border-purple-500'
+                            : 'bg-white/5 border-white/10 active:border-white/40 sm:hover:border-white/30'
                         }`}
                       >
-                        <div className="text-4xl mb-2">{option.emoji}</div>
-                        <p className="text-white font-bold">{option.label}</p>
+                        <div className="text-xl sm:text-2xl mb-1">{option.emoji}</div>
+                        <div className="text-white text-xs sm:text-sm font-medium">{option.label}</div>
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
+
+              <div className="flex gap-3 sm:gap-4">
+                <button
+                  onClick={() => setStep(2)}
+                  className="flex-1 bg-white/5 active:bg-white/15 sm:hover:bg-white/10 border border-white/10 text-white px-4 sm:px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
+                >
+                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Retour
+                </button>
+                <button
+                  onClick={handleComplete}
+                  disabled={!canProceedStep3 || loading}
+                  className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 active:from-pink-600 active:to-purple-600 sm:hover:from-pink-600 sm:hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 sm:px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      Enregistrement...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                      Terminer
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
-
-          {/* Navigation Buttons */}
-          <div className="flex items-center justify-between mt-12 gap-4">
-            <button
-              onClick={() => {
-                if (step > 1) {
-                  setStep(step - 1)
-                  setWeightError('')
-                }
-              }}
-              disabled={step === 1}
-              className="px-6 py-3 bg-white/10 text-white rounded-xl font-bold hover:bg-white/20 transition disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Retour
-            </button>
-
-            {step < 3 ? (
-              <button
-                onClick={() => {
-                  if (canGoNext()) {
-                    setStep(step + 1)
-                    setWeightError('')
-                  }
-                }}
-                disabled={!canGoNext()}
-                className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold hover:shadow-2xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                Suivant
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={!canGoNext()}
-                className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:shadow-2xl transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <Sparkles className="w-5 h-5" />
-                Commencer mon aventure !
-              </button>
-            )}
-          </div>
         </div>
-
       </div>
     </div>
   )

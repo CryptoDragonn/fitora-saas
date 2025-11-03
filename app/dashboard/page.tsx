@@ -1,290 +1,548 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useUserProfile } from '@/hooks/useUserProfile'
+import { useWeightHistory } from '@/hooks/useWeightHistory'
+import { supabase } from '@/lib/supabase'
 import { 
-  Zap, 
-  Video, 
-  Eye, 
-  TrendingUp,
+  Loader2, 
+  TrendingDown, 
+  TrendingUp, 
   Target,
-  Utensils,
-  Dumbbell,
-  CheckCircle2,
-  ArrowRight,
-  Sparkles,
-  Crown,
-  Flame,
-  Trophy,
-  Calendar
+  Scale,
+  Activity,
+  Plus,
+  Award,
+  X,
+  Edit,
+  Trash2,
+  Save,
+  Settings
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function DashboardPage() {
-  const [hoveredCard, setHoveredCard] = useState<number | null>(null)
+  const router = useRouter()
+  const { profile, loading: profileLoading, refreshProfile } = useUserProfile()
+  const { weights, loading: weightsLoading, addWeight, deleteWeight, latestWeight } = useWeightHistory()
+  
+  const [showAddWeight, setShowAddWeight] = useState(false)
+  const [editingWeight, setEditingWeight] = useState<string | null>(null)
+  const [newWeight, setNewWeight] = useState('')
+  const [editWeight, setEditWeight] = useState('')
+  const [editDate, setEditDate] = useState('')
+  const [addingWeight, setAddingWeight] = useState(false)
+  const [updatingWeight, setUpdatingWeight] = useState(false)
 
-  const stats = [
-    {
-      icon: Zap,
-      label: 'Crédits restants',
-      value: '150',
-      color: 'from-purple-500 to-pink-500',
-      bgColor: 'bg-purple-500/10',
-      progress: 75
-    },
-    {
-      icon: Video,
-      label: 'Vidéos créées',
-      value: '0',
-      color: 'from-blue-500 to-cyan-500',
-      bgColor: 'bg-blue-500/10',
-      progress: 0
-    },
-    {
-      icon: Eye,
-      label: 'Total vues',
-      value: '0',
-      color: 'from-pink-500 to-rose-500',
-      bgColor: 'bg-pink-500/10',
-      progress: 0
-    },
-    {
-      icon: TrendingUp,
-      label: 'Engagement',
-      value: '0%',
-      color: 'from-green-500 to-emerald-500',
-      bgColor: 'bg-green-500/10',
-      progress: 0
-    }
-  ]
+  const loading = profileLoading || weightsLoading
 
-  const actionSteps = [
-    {
-      number: 1,
-      title: 'Créer votre plan personnalisé',
-      description: 'Commencez par définir vos objectifs et obtenir votre roadmap complète',
-      icon: Target,
-      color: 'from-purple-500 to-pink-500',
-      link: '/dashboard',
-      cta: 'Commencer maintenant',
-      status: 'current'
-    },
-    {
-      number: 2,
-      title: 'Découvrir les exercices',
-      description: 'Explorez la bibliothèque d\'exercices avec vidéos et instructions',
-      icon: Dumbbell,
-      color: 'from-blue-500 to-cyan-500',
-      link: '/dashboard/exercises',
-      cta: 'Voir les tutoriels',
-      status: 'locked'
-    },
-    {
-      number: 3,
-      title: 'Générer votre plan repas',
-      description: 'Obtenez un plan nutritionnel adapté à votre objectif',
-      icon: Utensils,
-      color: 'from-orange-500 to-red-500',
-      link: '/dashboard/nutrition',
-      cta: 'Créer mon plan',
-      status: 'locked'
-    }
-  ]
+  const currentWeight = latestWeight || profile?.current_weight || 0
 
-  const quickActions = [
-    {
-      title: 'Séance du jour',
-      description: 'Cardio HIIT - 30 min',
-      icon: Flame,
-      color: 'from-orange-500 to-red-500',
-      link: '/dashboard/training'
-    },
-    {
-      title: 'Progression',
-      description: '1 séance cette semaine',
-      icon: Trophy,
-      color: 'from-yellow-500 to-orange-500',
-      link: '/dashboard/training'
-    },
-    {
-      title: 'Calendrier',
-      description: '5 jours restants',
-      icon: Calendar,
-      color: 'from-purple-500 to-pink-500',
-      link: '/dashboard/training'
+  // Calcul IMC
+  const calculateBMI = () => {
+    if (!profile || !currentWeight) return null
+    const heightInMeters = profile.height / 100
+    const bmi = currentWeight / (heightInMeters * heightInMeters)
+    return bmi.toFixed(1)
+  }
+
+  const getBMICategory = (bmi: number) => {
+    if (bmi < 18.5) return { label: 'Insuffisance pondérale', color: 'text-yellow-400' }
+    if (bmi < 25) return { label: 'Poids normal', color: 'text-green-400' }
+    if (bmi < 30) return { label: 'Surpoids', color: 'text-orange-400' }
+    return { label: 'Obésité', color: 'text-red-400' }
+  }
+
+  // Calcul progression
+  const calculateProgress = () => {
+    if (!profile || !currentWeight) return 0
+    const start = profile.current_weight
+    const target = profile.target_weight
+    
+    const totalDifference = Math.abs(target - start)
+    if (totalDifference === 0) return 100
+    
+    const currentDifference = Math.abs(currentWeight - start)
+    const progress = (currentDifference / totalDifference) * 100
+    
+    return Math.min(Math.max(progress, 0), 100)
+  }
+
+  // Poids restant
+  const remainingWeight = () => {
+    if (!profile || !currentWeight) return 0
+    return Math.abs(profile.target_weight - currentWeight)
+  }
+
+  // Ajouter un poids
+  const handleAddWeight = async () => {
+    if (!newWeight) return
+    
+    setAddingWeight(true)
+    const success = await addWeight(parseFloat(newWeight))
+    
+    if (success) {
+      setNewWeight('')
+      setShowAddWeight(false)
     }
-  ]
+    setAddingWeight(false)
+  }
+
+  // Éditer une pesée
+  const handleEditWeight = (weightEntry: any) => {
+    setEditingWeight(weightEntry.id)
+    setEditWeight(weightEntry.weight.toString())
+    setEditDate(weightEntry.date)
+  }
+
+  // Sauvegarder la modification
+  const handleSaveEdit = async () => {
+    if (!editingWeight || !editWeight) return
+    
+    setUpdatingWeight(true)
+    
+    try {
+      const { error } = await supabase
+        .from('weight_history')
+        .update({
+          weight: parseFloat(editWeight),
+          date: editDate
+        })
+        .eq('id', editingWeight)
+
+      if (error) throw error
+
+      console.log('✅ Pesée modifiée')
+      
+      // Recharger les données
+      window.location.reload()
+    } catch (error) {
+      console.error('❌ Erreur modification pesée:', error)
+    } finally {
+      setUpdatingWeight(false)
+      setEditingWeight(null)
+    }
+  }
+
+  // Supprimer une pesée
+  const handleDeleteWeight = async (id: string) => {
+    if (!confirm('Supprimer cette pesée ?')) return
+    
+    const success = await deleteWeight(id)
+    if (success) {
+      console.log('✅ Pesée supprimée')
+    }
+  }
+
+  // Chargement
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-pink-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-white animate-spin mx-auto mb-4" />
+          <p className="text-white text-lg">Chargement de ton profil...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 max-w-md text-center">
+          <p className="text-white text-lg mb-4">Aucun profil trouvé</p>
+          <a href="/onboarding" className="text-pink-400 underline">
+            Compléter l'onboarding →
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  const bmi = calculateBMI()
+  const bmiCategory = bmi ? getBMICategory(parseFloat(bmi)) : null
+  const progress = calculateProgress()
+  const weightLeft = remainingWeight()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-pink-900 p-4 sm:p-8">
+      <div className="max-w-7xl mx-auto">
         
         {/* Header */}
-        <div className="mb-6 sm:mb-8 pt-16 lg:pt-0">
-          <div className="flex items-center gap-2 sm:gap-3 mb-2">
-            <h1 className="text-3xl sm:text-4xl font-black text-gray-900">
-              Tableau de bord
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+              Salut ! 👋
             </h1>
-            <Sparkles className="w-6 sm:w-8 h-6 sm:h-8 text-purple-500 animate-pulse" />
+            <p className="text-white/70">Voici ton évolution aujourd'hui</p>
           </div>
-          <p className="text-base sm:text-lg text-gray-600">
-            Voici les étapes et les ressources pour commencer votre transformation
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8 sm:mb-12">
-          {stats.map((stat, index) => (
-            <div
-              key={index}
-              onMouseEnter={() => setHoveredCard(index)}
-              onMouseLeave={() => setHoveredCard(null)}
-              className="group relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer overflow-hidden"
-            >
-              <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
-
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className={`w-10 sm:w-12 h-10 sm:h-12 ${stat.bgColor} rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <stat.icon className="w-5 sm:w-6 h-5 sm:h-6" />
-                  </div>
-                  <div className={`text-2xl sm:text-3xl font-black bg-gradient-to-br ${stat.color} bg-clip-text text-transparent`}>
-                    {stat.value}
-                  </div>
-                </div>
-
-                <p className="text-xs sm:text-sm text-gray-600 font-medium mb-2 sm:mb-3">{stat.label}</p>
-
-                <div className="h-1.5 sm:h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full bg-gradient-to-r ${stat.color} transition-all duration-700`}
-                    style={{ width: hoveredCard === index ? `${stat.progress}%` : '0%' }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mb-8 sm:mb-12">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
-            <Zap className="w-5 sm:w-6 h-5 sm:h-6 text-purple-500" />
-            Actions rapides
-          </h2>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {quickActions.map((action, index) => (
-              <Link
-                key={index}
-                href={action.link}
-                className="group bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105"
-              >
-                <div className={`w-12 sm:w-14 h-12 sm:h-14 bg-gradient-to-br ${action.color} rounded-xl flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform`}>
-                  <action.icon className="w-6 sm:w-7 h-6 sm:h-7 text-white" />
-                </div>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">{action.title}</h3>
-                <p className="text-sm sm:text-base text-gray-600">{action.description}</p>
-                <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 text-gray-400 mt-3 sm:mt-4 group-hover:translate-x-2 transition-transform" />
-              </Link>
-            ))}
-          </div>
+          <button
+            onClick={() => router.push('/settings')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all"
+          >
+            <Settings className="w-5 h-5" />
+            <span className="hidden sm:inline">Paramètres</span>
+          </button>
         </div>
 
-        {/* Progress Section */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8 mb-8 sm:mb-12">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-4">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Target className="w-5 sm:w-6 h-5 sm:h-6 text-purple-500" />
-                Votre plan d'action vers le succès
-              </h2>
-            </div>
-            <div className="text-left sm:text-right">
-              <p className="text-xs sm:text-sm text-gray-600">Progression</p>
-              <p className="text-lg sm:text-2xl font-black text-purple-600">
-                1/3 • <span className="text-green-500">33%</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="h-2 sm:h-3 bg-gray-100 rounded-full overflow-hidden mb-6 sm:mb-8">
-            <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 w-1/3 transition-all duration-1000"></div>
-          </div>
-
-          {/* Action Steps */}
-          <div className="space-y-4 sm:space-y-6">
-            {actionSteps.map((step, index) => (
-              <div
-                key={index}
-                className={`group relative bg-gradient-to-br ${
-                  step.status === 'current' 
-                    ? 'from-purple-50 to-pink-50 border-2 border-purple-300' 
-                    : 'from-gray-50 to-gray-100 border-2 border-gray-200'
-                } rounded-xl sm:rounded-2xl p-4 sm:p-6 transition-all duration-300 hover:scale-102 hover:shadow-xl`}
-              >
-                <div className="flex items-start gap-4 sm:gap-6">
-                  <div className={`flex-shrink-0 w-10 sm:w-12 h-10 sm:h-12 bg-gradient-to-br ${step.color} rounded-lg sm:rounded-xl flex items-center justify-center text-white text-lg sm:text-xl font-black shadow-lg`}>
-                    {step.number}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between mb-2 sm:mb-3 gap-2">
-                      <div className="flex-1">
-                        <h3 className="text-base sm:text-xl font-bold text-gray-900 mb-1 sm:mb-2 flex items-center gap-2 flex-wrap">
-                          {step.title}
-                          {step.status === 'current' && (
-                            <span className="px-2 sm:px-3 py-1 bg-purple-500 text-white text-xs font-bold rounded-full animate-pulse">
-                              EN COURS
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-sm sm:text-base text-gray-600">{step.description}</p>
-                      </div>
-                      
-                      <div className={`w-10 sm:w-12 h-10 sm:h-12 bg-gradient-to-br ${step.color} rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
-                        <step.icon className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
-                      </div>
-                    </div>
-
-                    <Link
-                      href={step.link}
-                      className={`inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r ${step.color} text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-bold hover:shadow-lg transition-all duration-300 hover:scale-105 ${
-                        step.status === 'locked' ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    >
-                      {step.cta}
-                      <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Premium Banner */}
-        <div className="relative bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 rounded-xl sm:rounded-2xl p-6 sm:p-8 shadow-2xl overflow-hidden">
-          <div className="absolute inset-0 bg-black/10"></div>
-          <div className="absolute top-0 right-0 w-32 sm:w-64 h-32 sm:h-64 bg-white/10 rounded-full blur-3xl"></div>
+        {/* Stats principales */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           
-          <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                <Crown className="w-6 sm:w-8 h-6 sm:h-8 text-yellow-400" />
-                <h3 className="text-xl sm:text-2xl font-black text-white">Passez à Fitora Premium</h3>
-              </div>
-              <p className="text-purple-100 text-base sm:text-lg mb-3 sm:mb-4">
-                Débloquez tous les plans, exercices illimités et suivi nutrition avancé
-              </p>
-              <button className="px-6 sm:px-8 py-3 sm:py-3 bg-white text-purple-600 rounded-lg sm:rounded-xl font-bold hover:shadow-2xl transition-all duration-300 hover:scale-105 text-sm sm:text-base">
-                Découvrir Premium 🚀
+          {/* Poids actuel */}
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+            <div className="flex items-center justify-between mb-2">
+              <Scale className="w-8 h-8 text-purple-400" />
+              <button
+                onClick={() => setShowAddWeight(true)}
+                className="text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
               </button>
             </div>
-            <div className="text-5xl sm:text-6xl">💪</div>
+            <p className="text-white/60 text-sm mb-1">Poids actuel</p>
+            <p className="text-3xl font-bold text-white">
+              {currentWeight.toFixed(1)} kg
+            </p>
+            {weights.length > 1 && (
+              <p className="text-sm text-green-400 mt-2 flex items-center gap-1">
+                {profile.goal === 'lose_weight' ? (
+                  weights[0].weight < weights[1].weight ? (
+                    <>
+                      <TrendingDown className="w-4 h-4" />
+                      -{(weights[1].weight - weights[0].weight).toFixed(1)} kg
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp className="w-4 h-4 text-orange-400" />
+                      <span className="text-orange-400">+{(weights[0].weight - weights[1].weight).toFixed(1)} kg</span>
+                    </>
+                  )
+                ) : (
+                  weights[0].weight > weights[1].weight ? (
+                    <>
+                      <TrendingUp className="w-4 h-4" />
+                      +{(weights[0].weight - weights[1].weight).toFixed(1)} kg
+                    </>
+                  ) : (
+                    <>
+                      <TrendingDown className="w-4 h-4 text-orange-400" />
+                      <span className="text-orange-400">-{(weights[1].weight - weights[0].weight).toFixed(1)} kg</span>
+                    </>
+                  )
+                )}
+              </p>
+            )}
+          </div>
+
+          {/* Objectif */}
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+            <Target className="w-8 h-8 text-pink-400 mb-2" />
+            <p className="text-white/60 text-sm mb-1">Objectif</p>
+            <p className="text-3xl font-bold text-white">{profile.target_weight.toFixed(1)} kg</p>
+            <p className="text-sm text-white/60 mt-2">
+              {weightLeft.toFixed(1)} kg restants
+            </p>
+          </div>
+
+          {/* IMC */}
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+            <Activity className="w-8 h-8 text-cyan-400 mb-2" />
+            <p className="text-white/60 text-sm mb-1">IMC</p>
+            {bmi ? (
+              <>
+                <p className="text-3xl font-bold text-white">{bmi}</p>
+                <p className={`text-sm mt-2 ${bmiCategory?.color}`}>
+                  {bmiCategory?.label}
+                </p>
+              </>
+            ) : (
+              <p className="text-white/40">Calcul...</p>
+            )}
+          </div>
+
+          {/* Progression */}
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+            <Award className="w-8 h-8 text-yellow-400 mb-2" />
+            <p className="text-white/60 text-sm mb-1">Progression</p>
+            <p className="text-3xl font-bold text-white">{progress.toFixed(0)}%</p>
+            <p className="text-sm text-white/60 mt-2">
+              {weights.length} pesées enregistrées
+            </p>
+          </div>
+        </div>
+
+        {/* Graphique + Objectif */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          
+          {/* Graphique de progression */}
+          <div className="lg:col-span-2 bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+            <h2 className="text-xl font-bold text-white mb-6">Évolution du poids</h2>
+            
+            {weights.length > 0 ? (
+              <div className="space-y-3">
+                {weights.slice(0, 10).map((entry, index) => {
+                  const isEditing = editingWeight === entry.id
+                  const maxWeight = Math.max(...weights.map(w => w.weight))
+                  const percentage = (entry.weight / maxWeight) * 100
+                  
+                  return (
+                    <div key={entry.id}>
+                      {isEditing ? (
+                        // Mode édition
+                        <div className="bg-white/5 rounded-lg p-4 space-y-3">
+                          <div className="flex gap-3">
+                            <div className="flex-1">
+                              <label className="block text-white/60 text-xs mb-1">Poids (kg)</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={editWeight}
+                                onChange={(e) => setEditWeight(e.target.value)}
+                                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-white/60 text-xs mb-1">Date</label>
+                              <input
+                                type="date"
+                                value={editDate}
+                                onChange={(e) => setEditDate(e.target.value)}
+                                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleSaveEdit}
+                              disabled={updatingWeight}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {updatingWeight ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Save className="w-4 h-4" />
+                                  Sauvegarder
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setEditingWeight(null)}
+                              className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        // Mode affichage
+                        <div className="flex items-center gap-4">
+                          <div className="text-white/60 text-sm w-24">
+                            {new Date(entry.date).toLocaleDateString('fr-FR', { 
+                              day: 'numeric', 
+                              month: 'short' 
+                            })}
+                          </div>
+                          <div className="flex-1">
+                            <div className="h-8 bg-white/5 rounded-lg overflow-hidden relative">
+                              <div 
+                                className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg transition-all duration-500"
+                                style={{ width: `${percentage}%` }}
+                              />
+                              <span className="absolute inset-0 flex items-center justify-end px-3 text-white font-semibold text-sm">
+                                {entry.weight.toFixed(1)} kg
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {index === 0 && weights.length > 1 && (
+                              <div className="flex items-center gap-1 text-xs w-16">
+                                {entry.weight < weights[1].weight ? (
+                                  <>
+                                    <TrendingDown className="w-4 h-4 text-green-400" />
+                                    <span className="text-green-400">
+                                      -{(weights[1].weight - entry.weight).toFixed(1)}
+                                    </span>
+                                  </>
+                                ) : entry.weight > weights[1].weight ? (
+                                  <>
+                                    <TrendingUp className="w-4 h-4 text-orange-400" />
+                                    <span className="text-orange-400">
+                                      +{(entry.weight - weights[1].weight).toFixed(1)}
+                                    </span>
+                                  </>
+                                ) : null}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => handleEditWeight(entry)}
+                              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                              title="Modifier"
+                            >
+                              <Edit className="w-4 h-4 text-white/60 hover:text-white" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteWeight(entry.id)}
+                              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-400 hover:text-red-300" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Scale className="w-16 h-16 text-white/20 mx-auto mb-4" />
+                <p className="text-white/60 mb-4">Aucune pesée enregistrée</p>
+                <button
+                  onClick={() => setShowAddWeight(true)}
+                  className="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl transition-colors"
+                >
+                  Ajouter une pesée
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Carte objectif */}
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+            <h2 className="text-xl font-bold text-white mb-6">Ton objectif</h2>
+            
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-4">
+                {profile.goal === 'lose_weight' && '🔥'}
+                {profile.goal === 'gain_muscle' && '💪'}
+                {profile.goal === 'maintain' && '⚖️'}
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">
+                {profile.goal === 'lose_weight' && 'Perdre du poids'}
+                {profile.goal === 'gain_muscle' && 'Prendre du muscle'}
+                {profile.goal === 'maintain' && 'Maintenir'}
+              </h3>
+            </div>
+
+            {/* Barre de progression circulaire */}
+            <div className="relative w-40 h-40 mx-auto mb-6">
+              <svg className="w-full h-full -rotate-90">
+                <circle
+                  cx="80"
+                  cy="80"
+                  r="70"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="none"
+                  className="text-white/10"
+                />
+                <circle
+                  cx="80"
+                  cy="80"
+                  r="70"
+                  stroke="url(#gradient)"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 70}`}
+                  strokeDashoffset={`${2 * Math.PI * 70 * (1 - progress / 100)}`}
+                  className="transition-all duration-1000"
+                />
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#ec4899" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold text-white">{progress.toFixed(0)}%</span>
+                <span className="text-sm text-white/60">complété</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-white/60">Départ</span>
+                <span className="text-white font-semibold">{profile.current_weight.toFixed(1)} kg</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Actuel</span>
+                <span className="text-white font-semibold">{currentWeight.toFixed(1)} kg</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Objectif</span>
+                <span className="text-white font-semibold">{profile.target_weight.toFixed(1)} kg</span>
+              </div>
+            </div>
           </div>
         </div>
 
       </div>
+
+      {/* Modal ajout poids */}
+      {showAddWeight && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-indigo-950 to-purple-900 rounded-2xl p-6 max-w-md w-full border border-white/20">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Nouvelle pesée</h2>
+              <button
+                onClick={() => setShowAddWeight(false)}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white font-medium mb-2">
+                  Poids (kg)
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  value={newWeight}
+                  onChange={(e) => setNewWeight(e.target.value)}
+                  placeholder={currentWeight.toFixed(1)}
+                  className="w-full bg-white/10 border-2 border-white/20 focus:border-purple-500 rounded-xl px-4 py-3 text-white placeholder-white/30 outline-none transition-all text-lg"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAddWeight(false)}
+                  className="flex-1 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleAddWeight}
+                  disabled={!newWeight || addingWeight}
+                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 text-white px-6 py-3 rounded-xl transition-all font-semibold flex items-center justify-center gap-2"
+                >
+                  {addingWeight ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Ajout...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5" />
+                      Ajouter
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
