@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Dumbbell, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Dumbbell, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -61,6 +61,10 @@ export default function LoginPage() {
     }
   }
 
+  const goToHome = () => {
+    window.location.href = '/'
+  }
+
   return (
     <div className="min-h-screen min-h-[100dvh] bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
       
@@ -76,7 +80,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div 
             className="inline-flex items-center gap-3 mb-6 cursor-pointer hover:scale-105 transition-transform"
-            onClick={() => window.location.href = '/'}
+            onClick={goToHome}
           >
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl blur-lg opacity-75"></div>
@@ -185,13 +189,14 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Back home */}
+        {/* Back home - VERSION CORRIGÉE */}
         <div className="text-center mt-6">
           <button
-            onClick={() => window.location.href = '/'}
-            className="text-white/50 hover:text-white/80 text-sm transition-colors"
+            onClick={goToHome}
+            className="inline-flex items-center gap-2 text-white/50 hover:text-white/80 text-sm transition-colors hover:scale-105"
           >
-            ← Retour a l accueil
+            <ArrowLeft className="w-4 h-4" />
+            Retour a l accueil
           </button>
         </div>
       </div>
