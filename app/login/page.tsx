@@ -25,7 +25,6 @@ export default function LoginPage() {
     }
 
     try {
-      // Connexion
       const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password
@@ -35,14 +34,12 @@ export default function LoginPage() {
         throw signInError
       }
 
-      // Vérifier le profil
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('onboarding_completed')
         .eq('user_id', authData.user.id)
         .single()
 
-      // Redirection
       if (profile?.onboarding_completed) {
         window.location.href = '/dashboard'
       } else {
@@ -65,7 +62,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen min-h-[100dvh] bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
       
       {/* Animated background */}
       <div className="absolute inset-0">
@@ -77,7 +74,10 @@ export default function LoginPage() {
         
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-6">
+          <div 
+            className="inline-flex items-center gap-3 mb-6 cursor-pointer hover:scale-105 transition-transform"
+            onClick={() => window.location.href = '/'}
+          >
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl blur-lg opacity-75"></div>
               <div className="relative w-12 h-12 bg-gradient-to-br from-pink-500 to-purple-500 rounded-2xl flex items-center justify-center">
@@ -188,7 +188,7 @@ export default function LoginPage() {
         {/* Back home */}
         <div className="text-center mt-6">
           <button
-            onClick={() => router.push('/')}
+            onClick={() => window.location.href = '/'}
             className="text-white/50 hover:text-white/80 text-sm transition-colors"
           >
             ← Retour a l accueil
@@ -210,10 +210,6 @@ export default function LoginPage() {
         .animation-delay-2000 {
           animation-delay: 2s;
         }
-          .safe-top {
-  height: env(safe-area-inset-top);
-  background: transparent;
-}
       `}</style>
     </div>
   )
