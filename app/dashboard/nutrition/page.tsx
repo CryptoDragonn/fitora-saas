@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react'
 import { useUserProfile } from '@/hooks/useUserProfile'
 import { useWeightHistory } from '@/hooks/useWeightHistory'
 import { useMealPreferences } from '@/hooks/useMealPreferences'
-import { calculateDailyCalories, calculateMacros, getMealDistribution } from '@/lib/nutritionCalculator'
-import { generateWeeklyMealPlan, generateShoppingList, type DayMeals, type Meal } from '@/lib/mealGenerator'
+import { useMealPlanGenerator } from '@/hooks/useMealPlanGenerator'
+import { calculateDailyCalories, calculateMacros } from '@/lib/nutritionCalculator'
+import { generateWeeklyMealPlan, generateShoppingList } from '@/lib/mealGenerator'
+import type { Meal, DayMeals } from '@/lib/mealGenerator'
 import { 
   Apple, 
   Loader2, 
@@ -19,15 +21,17 @@ import {
   TrendingUp,
   Settings,
   Sparkles,
-  Plus,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertCircle,
+  Zap
 } from 'lucide-react'
 
 export default function NutritionPage() {
   const { profile, loading: profileLoading } = useUserProfile()
   const { latestWeight, loading: weightLoading } = useWeightHistory()
   const { preferences, savePreferences, loading: prefsLoading } = useMealPreferences()
+  const { generateMealPlan, generating, error: generationError } = useMealPlanGenerator()
 
   const [showPreferences, setShowPreferences] = useState(false)
   const [weeklyPlan, setWeeklyPlan] = useState<Record<string, DayMeals> | null>(null)
@@ -35,7 +39,7 @@ export default function NutritionPage() {
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null)
-  const [generating, setGenerating] = useState(false)
+  const [usedLocalGenerator, setUsedLocalGenerator] = useState(false)
 
   // Form state pour les préférences
   const [dietaryType, setDietaryType] = useState<'omnivore' | 'vegetarian' | 'vegan' | 'pescatarian'>('omnivore')
@@ -83,21 +87,46 @@ export default function NutritionPage() {
     }
   }
 
-  // Générer le plan repas
+  // Générer le plan repas avec OpenAI OU fallback intelligent
   const handleGeneratePlan = async () => {
-    if (!dailyCalories) return
+    if (!profile || !latestWeight || !preferences || !macros) {
+      console.error('❌ Données manquantes pour générer le plan')
+      return
+    }
 
-    setGenerating(true)
-    
-    // Simuler un délai de génération
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    console.log('🤖 Tentative avec OpenAI...')
+    setUsedLocalGenerator(false)
 
-    const plan = generateWeeklyMealPlan(dailyCalories, dailyMeals, snacksPerDay, dietaryType)
-    const shopping = generateShoppingList(plan)
+    const result = await generateMealPlan({
+      profile,
+      currentWeight: latestWeight,
+      preferences,
+      dailyCalories,
+      macros
+    })
 
-    setWeeklyPlan(plan)
-    setShoppingList(shopping)
-    setGenerating(false)
+    // Si OpenAI échoue, utiliser le générateur local intelligent
+    if (!result || !result.weeklyPlan) {
+      console.log('⚠️ OpenAI indisponible, utilisation du générateur local INTELLIGENT')
+      
+      const localPlan = generateWeeklyMealPlan(
+        dailyCalories,
+        preferences.daily_meals,
+        preferences.snacks_per_day,
+        preferences.dietary_type,
+        profile.goal
+      )
+      
+      const localShopping = generateShoppingList(localPlan)
+      
+      setWeeklyPlan(localPlan)
+      setShoppingList(localShopping)
+      setUsedLocalGenerator(true)
+    } else {
+      setWeeklyPlan(result.weeklyPlan)
+      setShoppingList(result.shoppingList || null)
+      setUsedLocalGenerator(false)
+    }
   }
 
   // Toggle item dans la liste de courses
@@ -113,10 +142,10 @@ export default function NutritionPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-pink-900 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-white animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Chargement...</p>
+          <Loader2 className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Chargement...</p>
         </div>
       </div>
     )
@@ -124,10 +153,15 @@ export default function NutritionPage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-pink-900 flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 max-w-md text-center">
-          <p className="text-white text-lg mb-4">Aucun profil trouvé</p>
-          <a href="/onboarding" className="text-pink-400 underline">
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-xl">
+          <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Profil manquant</h2>
+          <p className="text-gray-600 mb-6">Tu dois d'abord compléter ton profil</p>
+          <a 
+            href="/onboarding" 
+            className="inline-block px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors"
+          >
             Compléter l'onboarding →
           </a>
         </div>
@@ -136,77 +170,115 @@ export default function NutritionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-pink-900 p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 flex items-center gap-3">
-              <Apple className="w-10 h-10 text-green-400" />
-              Nutrition & Plan Alimentaire
-            </h1>
-            <p className="text-white/70">Ton nutritionniste IA personnel pour une alimentation optimale</p>
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                <Apple className="w-10 h-10 text-green-500" />
+                Nutrition & Plan Alimentaire
+              </h1>
+              <p className="text-gray-600">
+                {usedLocalGenerator 
+                  ? 'Plan adapté à ton profil par notre algorithme intelligent' 
+                  : 'Ton nutritionniste personnel pour une alimentation optimale'}
+              </p>
+            </div>
+            
+            <button
+              onClick={() => setShowPreferences(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-all shadow-sm"
+            >
+              <Settings className="w-5 h-5" />
+              <span className="hidden sm:inline font-medium">Préférences</span>
+            </button>
           </div>
-          
-          <button
-            onClick={() => setShowPreferences(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all"
-          >
-            <Settings className="w-5 h-5" />
-            Préférences
-          </button>
         </div>
 
         {/* Stats nutritionnelles */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
-            <Flame className="w-8 h-8 text-orange-400 mb-2" />
-            <p className="text-white/60 text-sm mb-1">Calories journalières</p>
-            <p className="text-3xl font-bold text-white">{dailyCalories}</p>
-            <p className="text-sm text-white/60 mt-2">
-              {profile.goal === 'lose_weight' && 'Déficit calorique'}
-              {profile.goal === 'gain_muscle' && 'Surplus calorique'}
-              {profile.goal === 'maintain' && 'Maintien'}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <Flame className="w-8 h-8 text-orange-500 mb-3" />
+            <p className="text-gray-600 text-sm font-medium mb-1">Calories journalières</p>
+            <p className="text-3xl font-bold text-gray-900">{dailyCalories}</p>
+            <p className="text-sm text-gray-500 mt-2">
+              {profile.goal === 'lose_weight' && '🔥 Déficit calorique'}
+              {profile.goal === 'gain_muscle' && '💪 Surplus calorique'}
+              {profile.goal === 'maintain' && '⚖️ Maintien'}
             </p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
-            <Target className="w-8 h-8 text-red-400 mb-2" />
-            <p className="text-white/60 text-sm mb-1">Protéines</p>
-            <p className="text-3xl font-bold text-white">{macros?.protein}g</p>
-            <p className="text-sm text-white/60 mt-2">Par jour</p>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <Target className="w-8 h-8 text-red-500 mb-3" />
+            <p className="text-gray-600 text-sm font-medium mb-1">Protéines</p>
+            <p className="text-3xl font-bold text-gray-900">{macros?.protein}g</p>
+            <p className="text-sm text-gray-500 mt-2">Par jour</p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
-            <TrendingUp className="w-8 h-8 text-yellow-400 mb-2" />
-            <p className="text-white/60 text-sm mb-1">Glucides</p>
-            <p className="text-3xl font-bold text-white">{macros?.carbs}g</p>
-            <p className="text-sm text-white/60 mt-2">Par jour</p>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <TrendingUp className="w-8 h-8 text-yellow-500 mb-3" />
+            <p className="text-gray-600 text-sm font-medium mb-1">Glucides</p>
+            <p className="text-3xl font-bold text-gray-900">{macros?.carbs}g</p>
+            <p className="text-sm text-gray-500 mt-2">Par jour</p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
-            <Apple className="w-8 h-8 text-green-400 mb-2" />
-            <p className="text-white/60 text-sm mb-1">Lipides</p>
-            <p className="text-3xl font-bold text-white">{macros?.fats}g</p>
-            <p className="text-sm text-white/60 mt-2">Par jour</p>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <Apple className="w-8 h-8 text-green-500 mb-3" />
+            <p className="text-gray-600 text-sm font-medium mb-1">Lipides</p>
+            <p className="text-3xl font-bold text-gray-900">{macros?.fats}g</p>
+            <p className="text-sm text-gray-500 mt-2">Par jour</p>
           </div>
         </div>
 
-        {/* Section génération de plan */}
+        {/* Erreur de génération */}
+        {generationError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-red-900 font-semibold">Erreur OpenAI</p>
+              <p className="text-red-700 text-sm">{generationError}</p>
+              <p className="text-red-600 text-xs mt-1">Utilisation du générateur local à la place.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Badge générateur local */}
+        {usedLocalGenerator && weeklyPlan && (
+          <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl flex items-start gap-3">
+            <Zap className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-purple-900 font-semibold">Générateur local activé</p>
+              <p className="text-purple-700 text-sm">
+                Plan généré instantanément selon ton profil : 
+                {profile.goal === 'lose_weight' && ' perte de poids'}
+                {profile.goal === 'gain_muscle' && ' prise de muscle'}
+                {profile.goal === 'maintain' && ' maintien'}, 
+                régime {dietaryType}, {dailyCalories} cal/jour
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Section génération */}
         {!weeklyPlan ? (
-          <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-3xl p-8 sm:p-12 text-center mb-8">
-            <Sparkles className="w-16 h-16 text-white mx-auto mb-6" />
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-3xl p-8 sm:p-12 text-center shadow-xl">
+            <Sparkles className="w-16 h-16 text-white mx-auto mb-6 animate-pulse" />
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Prêt à transformer ton alimentation ? 🍏
             </h2>
-            <p className="text-white/90 text-lg mb-8 max-w-2xl mx-auto">
-              Génère ton plan alimentaire personnalisé en 2 minutes
+            <p className="text-white/90 text-lg mb-2 max-w-2xl mx-auto">
+              Génère ton plan alimentaire personnalisé en quelques secondes
+            </p>
+            <p className="text-white/80 text-sm mb-8 max-w-xl mx-auto">
+              Adapté à ton objectif, ton profil et tes préférences alimentaires
             </p>
             <button
               onClick={handleGeneratePlan}
               disabled={generating}
-              className="inline-flex items-center gap-3 px-8 py-4 bg-white text-green-600 rounded-full font-bold text-lg hover:shadow-2xl transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-3 px-8 py-4 bg-white text-green-600 rounded-full font-bold text-lg hover:shadow-2xl hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
             >
               {generating ? (
                 <>
@@ -224,154 +296,118 @@ export default function NutritionPage() {
         ) : (
           <>
             {/* Plan hebdomadaire */}
-            <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20 mb-8">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  <ChefHat className="w-7 h-7 text-purple-400" />
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <ChefHat className="w-7 h-7 text-purple-600" />
                   Ton plan de la semaine
                 </h2>
                 <button
                   onClick={handleGeneratePlan}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl transition-colors text-sm"
+                  disabled={generating}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl transition-colors text-sm font-medium"
                 >
-                  <Plus className="w-4 h-4" />
-                  Nouveau plan
+                  {generating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Génération...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Nouveau plan
+                    </>
+                  )}
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {Object.entries(weeklyPlan).map(([day, meals]) => (
-                  <div key={day} className="bg-white/5 rounded-xl overflow-hidden">
-                    <button
-                      onClick={() => setSelectedDay(selectedDay === day ? null : day)}
-                      className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
-                    >
-                      <span className="text-white font-semibold text-lg">{day}</span>
-                      <div className="flex items-center gap-4">
-                        <span className="text-white/60 text-sm">
-                          {(meals.breakfast.calories + meals.lunch.calories + meals.dinner.calories + 
-                            meals.snacks.reduce((acc, s) => acc + s.calories, 0)).toFixed(0)} cal
-                        </span>
-                        {selectedDay === day ? (
-                          <ChevronUp className="w-5 h-5 text-white/60" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-white/60" />
-                        )}
-                      </div>
-                    </button>
+              <div className="space-y-3">
+                {Object.entries(weeklyPlan).map(([day, meals]) => {
+                  const dayTotal = meals.breakfast.calories + meals.lunch.calories + 
+                                   meals.dinner.calories + meals.snacks.reduce((acc, s) => acc + s.calories, 0)
+                  
+                  return (
+                    <div key={day} className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+                      <button
+                        onClick={() => setSelectedDay(selectedDay === day ? null : day)}
+                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-100 transition-colors"
+                      >
+                        <span className="text-gray-900 font-semibold text-lg">{day}</span>
+                        <div className="flex items-center gap-4">
+                          <span className="text-gray-600 text-sm font-medium">
+                            {dayTotal.toFixed(0)} cal
+                          </span>
+                          {selectedDay === day ? (
+                            <ChevronUp className="w-5 h-5 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+                      </button>
 
-                    {selectedDay === day && (
-                      <div className="px-6 pb-6 space-y-3">
-                        {/* Petit-déjeuner */}
-                        <button
-                          onClick={() => setSelectedMeal(meals.breakfast)}
-                          className="w-full p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">{meals.breakfast.emoji}</span>
-                              <div>
-                                <p className="text-white font-medium">{meals.breakfast.name}</p>
-                                <p className="text-white/60 text-sm">
-                                  {meals.breakfast.calories} cal · {meals.breakfast.protein}g protéines
-                                </p>
-                              </div>
-                            </div>
-                            <Clock className="w-4 h-4 text-white/60" />
-                          </div>
-                        </button>
-
-                        {/* Déjeuner */}
-                        <button
-                          onClick={() => setSelectedMeal(meals.lunch)}
-                          className="w-full p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">{meals.lunch.emoji}</span>
-                              <div>
-                                <p className="text-white font-medium">{meals.lunch.name}</p>
-                                <p className="text-white/60 text-sm">
-                                  {meals.lunch.calories} cal · {meals.lunch.protein}g protéines
-                                </p>
-                              </div>
-                            </div>
-                            <Clock className="w-4 h-4 text-white/60" />
-                          </div>
-                        </button>
-
-                        {/* Dîner */}
-                        <button
-                          onClick={() => setSelectedMeal(meals.dinner)}
-                          className="w-full p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-left"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">{meals.dinner.emoji}</span>
-                              <div>
-                                <p className="text-white font-medium">{meals.dinner.name}</p>
-                                <p className="text-white/60 text-sm">
-                                  {meals.dinner.calories} cal · {meals.dinner.protein}g protéines
-                                </p>
-                              </div>
-                            </div>
-                            <Clock className="w-4 h-4 text-white/60" />
-                          </div>
-                        </button>
-
-                        {/* Snacks */}
-                        {meals.snacks.map((snack, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setSelectedMeal(snack)}
-                            className="w-full p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-left"
-                          >
-                            <div className="flex items-center justify-between">
+                      {selectedDay === day && (
+                        <div className="px-6 pb-6 space-y-2">
+                          {[
+                            { meal: meals.breakfast, label: 'Petit-déjeuner' },
+                            { meal: meals.lunch, label: 'Déjeuner' },
+                            { meal: meals.dinner, label: 'Dîner' },
+                            ...meals.snacks.map((snack, idx) => ({ 
+                              meal: snack, 
+                              label: `Collation ${idx + 1}` 
+                            }))
+                          ].map((item, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setSelectedMeal(item.meal)}
+                              className="w-full p-4 bg-white hover:bg-gray-50 rounded-lg transition-colors text-left border border-gray-200"
+                            >
                               <div className="flex items-center gap-3">
-                                <span className="text-2xl">{snack.emoji}</span>
-                                <div>
-                                  <p className="text-white font-medium">{snack.name}</p>
-                                  <p className="text-white/60 text-sm">
-                                    {snack.calories} cal · Collation {idx + 1}
+                                <span className="text-2xl flex-shrink-0">{item.meal.emoji}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-gray-900 font-medium truncate">{item.meal.name}</p>
+                                  <p className="text-gray-500 text-sm">
+                                    {item.meal.calories} cal · {item.meal.protein}g protéines · {item.label}
                                   </p>
                                 </div>
+                                <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
                               </div>
-                              <Clock className="w-4 h-4 text-white/60" />
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
             {/* Liste de courses */}
             {shoppingList && (
-              <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
-                <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                  <ShoppingCart className="w-7 h-7 text-green-400" />
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <ShoppingCart className="w-7 h-7 text-green-600" />
                   Liste de courses
                 </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Object.entries(shoppingList).map(([category, items]) => (
-                    <div key={category} className="bg-white/5 rounded-xl p-4">
-                      <h3 className="text-lg font-semibold text-white mb-3">{category}</h3>
+                    <div key={category} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                        {category}
+                      </h3>
                       <div className="space-y-2">
                         {items.map((item, idx) => (
                           <label
                             key={idx}
-                            className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors"
+                            className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
                           >
                             <input
                               type="checkbox"
                               checked={checkedItems.has(item)}
                               onChange={() => toggleShoppingItem(item)}
-                              className="w-5 h-5 rounded border-2 border-white/30 checked:bg-green-500 checked:border-green-500"
+                              className="w-5 h-5 rounded border-2 border-gray-300 text-green-600 focus:ring-green-500"
                             />
-                            <span className={`text-white ${checkedItems.has(item) ? 'line-through opacity-50' : ''}`}>
+                            <span className={`text-gray-700 ${checkedItems.has(item) ? 'line-through opacity-50' : ''}`}>
                               {item}
                             </span>
                           </label>
@@ -388,13 +424,13 @@ export default function NutritionPage() {
 
       {/* Modal Préférences */}
       {showPreferences && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-gradient-to-br from-indigo-950 to-purple-900 rounded-2xl p-6 max-w-2xl w-full border border-white/20 my-8">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full my-8 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Préférences alimentaires</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Préférences alimentaires</h2>
               <button
                 onClick={() => setShowPreferences(false)}
-                className="text-white/60 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -403,7 +439,7 @@ export default function NutritionPage() {
             <div className="space-y-6">
               {/* Type de régime */}
               <div>
-                <label className="block text-white font-medium mb-3">Type de régime</label>
+                <label className="block text-gray-900 font-medium mb-3">Type de régime</label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { value: 'omnivore', label: 'Omnivore', emoji: '🍖' },
@@ -416,94 +452,44 @@ export default function NutritionPage() {
                       onClick={() => setDietaryType(option.value as any)}
                       className={`p-4 rounded-xl border-2 transition-all ${
                         dietaryType === option.value
-                          ? 'bg-purple-500/20 border-purple-500'
-                          : 'bg-white/5 border-white/10 hover:border-white/30'
+                          ? 'bg-purple-50 border-purple-500'
+                          : 'bg-gray-50 border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <div className="text-3xl mb-2">{option.emoji}</div>
-                      <div className="text-white font-medium">{option.label}</div>
+                      <div className="text-gray-900 font-medium">{option.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Nombre de repas */}
-              <div>
-                <label className="block text-white font-medium mb-3">
-                  Repas par jour : {dailyMeals}
-                </label>
-                <input
-                  type="range"
-                  min="2"
-                  max="5"
-                  value={dailyMeals}
-                  onChange={(e) => setDailyMeals(parseInt(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Nombre de snacks */}
-              <div>
-                <label className="block text-white font-medium mb-3">
-                  Collations par jour : {snacksPerDay}
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="3"
-                  value={snacksPerDay}
-                  onChange={(e) => setSnacksPerDay(parseInt(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Temps de cuisine */}
-              <div>
-                <label className="block text-white font-medium mb-3">Temps de préparation</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { value: 'quick', label: 'Rapide', time: '< 15 min' },
-                    { value: 'medium', label: 'Moyen', time: '15-30 min' },
-                    { value: 'elaborate', label: 'Élaboré', time: '> 30 min' }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setCookingTime(option.value as any)}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        cookingTime === option.value
-                          ? 'bg-purple-500/20 border-purple-500'
-                          : 'bg-white/5 border-white/10 hover:border-white/30'
-                      }`}
-                    >
-                      <div className="text-white font-medium mb-1">{option.label}</div>
-                      <div className="text-white/60 text-sm">{option.time}</div>
-                    </button>
-                  ))}
+              {/* Repas et snacks */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-900 font-medium mb-3">
+                    Repas/jour : <span className="text-purple-600">{dailyMeals}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="2"
+                    max="5"
+                    value={dailyMeals}
+                    onChange={(e) => setDailyMeals(parseInt(e.target.value))}
+                    className="w-full"
+                  />
                 </div>
-              </div>
-
-              {/* Budget */}
-              <div>
-                <label className="block text-white font-medium mb-3">Budget</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { value: 'low', label: 'Économique', emoji: '💰' },
-                    { value: 'medium', label: 'Moyen', emoji: '💰💰' },
-                    { value: 'high', label: 'Élevé', emoji: '💰💰💰' }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setBudgetLevel(option.value as any)}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        budgetLevel === option.value
-                          ? 'bg-purple-500/20 border-purple-500'
-                          : 'bg-white/5 border-white/10 hover:border-white/30'
-                      }`}
-                    >
-                      <div className="text-2xl mb-1">{option.emoji}</div>
-                      <div className="text-white font-medium text-sm">{option.label}</div>
-                    </button>
-                  ))}
+                <div>
+                  <label className="block text-gray-900 font-medium mb-3">
+                    Collations/jour : <span className="text-purple-600">{snacksPerDay}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="3"
+                    value={snacksPerDay}
+                    onChange={(e) => setSnacksPerDay(parseInt(e.target.value))}
+                    className="w-full"
+                  />
                 </div>
               </div>
             </div>
@@ -511,13 +497,13 @@ export default function NutritionPage() {
             <div className="flex gap-3 mt-8">
               <button
                 onClick={() => setShowPreferences(false)}
-                className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
+                className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all font-medium"
               >
                 Annuler
               </button>
               <button
                 onClick={handleSavePreferences}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all font-semibold"
+                className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all font-semibold"
               >
                 Sauvegarder
               </button>
@@ -526,18 +512,18 @@ export default function NutritionPage() {
         </div>
       )}
 
-      {/* Modal Détails du repas */}
+      {/* Modal Détails repas */}
       {selectedMeal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-gradient-to-br from-indigo-950 to-purple-900 rounded-2xl p-6 max-w-2xl w-full border border-white/20 my-8">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full my-8 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <span className="text-4xl">{selectedMeal.emoji}</span>
-                <h2 className="text-2xl font-bold text-white">{selectedMeal.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedMeal.name}</h2>
               </div>
               <button
                 onClick={() => setSelectedMeal(null)}
-                className="text-white/60 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -545,38 +531,33 @@ export default function NutritionPage() {
 
             {/* Macros */}
             <div className="grid grid-cols-4 gap-4 mb-6">
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <p className="text-white/60 text-sm mb-1">Calories</p>
-                <p className="text-2xl font-bold text-white">{selectedMeal.calories}</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <p className="text-white/60 text-sm mb-1">Protéines</p>
-                <p className="text-2xl font-bold text-white">{selectedMeal.protein}g</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <p className="text-white/60 text-sm mb-1">Glucides</p>
-                <p className="text-2xl font-bold text-white">{selectedMeal.carbs}g</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 text-center">
-                <p className="text-white/60 text-sm mb-1">Lipides</p>
-                <p className="text-2xl font-bold text-white">{selectedMeal.fats}g</p>
-              </div>
+              {[
+                { label: 'Calories', value: selectedMeal.calories, unit: '' },
+                { label: 'Protéines', value: selectedMeal.protein, unit: 'g' },
+                { label: 'Glucides', value: selectedMeal.carbs, unit: 'g' },
+                { label: 'Lipides', value: selectedMeal.fats, unit: 'g' }
+              ].map((macro, idx) => (
+                <div key={idx} className="bg-gray-50 rounded-xl p-4 text-center border border-gray-200">
+                  <p className="text-gray-600 text-sm mb-1">{macro.label}</p>
+                  <p className="text-2xl font-bold text-gray-900">{macro.value}{macro.unit}</p>
+                </div>
+              ))}
             </div>
 
-            {/* Temps de préparation */}
-            <div className="flex items-center gap-2 text-white/70 mb-6">
+            {/* Temps */}
+            <div className="flex items-center gap-2 text-gray-600 mb-6 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
               <Clock className="w-5 h-5" />
-              <span>Temps de préparation : {selectedMeal.prepTime} min</span>
+              <span>Temps : <strong className="text-gray-900">{selectedMeal.prepTime} min</strong></span>
             </div>
 
             {/* Ingrédients */}
             <div className="mb-6">
-              <h3 className="text-xl font-bold text-white mb-3">Ingrédients</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">🛒 Ingrédients</h3>
               <ul className="space-y-2">
-                {selectedMeal.ingredients.map((ingredient, idx) => (
-                  <li key={idx} className="flex items-center gap-2 text-white/80">
-                    <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
-                    {ingredient}
+                {selectedMeal.ingredients.map((ing, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" />
+                    <span>{ing}</span>
                   </li>
                 ))}
               </ul>
@@ -584,14 +565,14 @@ export default function NutritionPage() {
 
             {/* Instructions */}
             <div>
-              <h3 className="text-xl font-bold text-white mb-3">Préparation</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">👨‍🍳 Préparation</h3>
               <ol className="space-y-3">
-                {selectedMeal.instructions.map((instruction, idx) => (
-                  <li key={idx} className="flex gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                {selectedMeal.instructions.map((inst, idx) => (
+                  <li key={idx} className="flex gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <span className="flex-shrink-0 w-7 h-7 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
                       {idx + 1}
                     </span>
-                    <span className="text-white/80">{instruction}</span>
+                    <span className="text-gray-700">{inst}</span>
                   </li>
                 ))}
               </ol>

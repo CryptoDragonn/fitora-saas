@@ -1,333 +1,569 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import { 
   Dumbbell, 
-  Zap, 
-  Target, 
-  Award, 
-  TrendingUp, 
-  Users, 
-  Star,
-  Check,
-  ArrowRight,
+  ArrowRight, 
+  Sparkles, 
+  Loader2,
   Flame,
-  Trophy,
+  Users,
+  Zap,
+  Star,
+  TrendingUp,
+  Heart,
+  CheckCircle2,
+  Shield,
+  Clock,
+  Award,
+  Target,
   Activity,
-  Crown,
-  Sparkles,
-  Play
+  Apple,
+  BarChart3,
+  ChevronRight
 } from 'lucide-react'
 
-export default function HomePage() {
-  const [caloriesBurned, setCaloriesBurned] = useState(0)
-  const [activeUsers, setActiveUsers] = useState(0)
-  const [workoutsCompleted, setWorkoutsCompleted] = useState(0)
+export default function LandingPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [scrollY, setScrollY] = useState(0)
 
   useEffect(() => {
-    const caloriesInterval = setInterval(() => {
-      setCaloriesBurned(prev => prev < 1250847 ? prev + 15847 : 1250847)
-    }, 50)
+    const checkUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('onboarding_completed')
+            .eq('user_id', user.id)
+            .single()
 
-    const usersInterval = setInterval(() => {
-      setActiveUsers(prev => prev < 12547 ? prev + 247 : 12547)
-    }, 60)
+          if (profile?.onboarding_completed) {
+            router.push('/dashboard')
+          } else {
+            router.push('/onboarding')
+          }
+        } else {
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error('Erreur:', error)
+        setLoading(false)
+      }
+    }
 
-    const workoutsInterval = setInterval(() => {
-      setWorkoutsCompleted(prev => prev < 45821 ? prev + 821 : 45821)
-    }, 55)
+    checkUser()
+  }, [router])
 
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY })
+    }
+    
+    const handleScroll = () => {
+      setScrollY(window.scrollY)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('scroll', handleScroll)
+    
     return () => {
-      clearInterval(caloriesInterval)
-      clearInterval(usersInterval)
-      clearInterval(workoutsInterval)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('scroll', handleScroll)
     }
   }, [])
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center">
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full blur-2xl opacity-50 animate-pulse"></div>
+          <Loader2 className="relative w-16 h-16 text-white animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
   const features = [
     {
-      icon: Target,
-      title: 'Plans Personnalisés',
-      description: 'Programme adapté à tes objectifs',
-      color: 'from-purple-500 to-pink-500',
-      bgColor: 'bg-purple-500/10',
-      stat: '98% de réussite'
+      icon: Apple,
+      title: 'Nutrition IA',
+      description: 'Plans repas generes par IA adaptes a tes gouts et objectifs',
+      color: 'from-green-500 to-emerald-500',
+      bgColor: 'from-green-500/10 to-emerald-500/10'
     },
     {
-      icon: Dumbbell,
-      title: 'Exercices Guidés',
-      description: 'Vidéos HD avec instructions',
+      icon: BarChart3,
+      title: 'Analytics avances',
+      description: 'Visualise ta progression avec des graphiques detailles',
       color: 'from-blue-500 to-cyan-500',
-      bgColor: 'bg-blue-500/10',
-      stat: '500+ exercices'
-    },
-    {
-      icon: Award,
-      title: 'Gamification',
-      description: 'Badges et récompenses',
-      color: 'from-orange-500 to-red-500',
-      bgColor: 'bg-orange-500/10',
-      stat: '50+ badges'
+      bgColor: 'from-blue-500/10 to-cyan-500/10'
     },
     {
       icon: Activity,
-      title: 'Suivi Nutrition',
-      description: 'Plans repas équilibrés',
-      color: 'from-green-500 to-emerald-500',
-      bgColor: 'bg-green-500/10',
-      stat: '1000+ recettes'
+      title: 'Coaching adaptatif',
+      description: 'Conseils personnalises qui evoluent avec tes progres',
+      color: 'from-purple-500 to-pink-500',
+      bgColor: 'from-purple-500/10 to-pink-500/10'
+    },
+    {
+      icon: Target,
+      title: 'Objectifs precis',
+      description: 'Definis et atteins tes objectifs etape par etape',
+      color: 'from-orange-500 to-red-500',
+      bgColor: 'from-orange-500/10 to-red-500/10'
+    },
+    {
+      icon: Award,
+      title: 'Recompenses',
+      description: 'Gagne des badges en accomplissant tes defis',
+      color: 'from-yellow-500 to-orange-500',
+      bgColor: 'from-yellow-500/10 to-orange-500/10'
+    },
+    {
+      icon: Shield,
+      title: 'Securite totale',
+      description: 'Tes donnees sont protegees et privees',
+      color: 'from-indigo-500 to-purple-500',
+      bgColor: 'from-indigo-500/10 to-purple-500/10'
     }
   ]
 
   const testimonials = [
     {
-      name: 'Sophie M.',
-      result: '-12kg en 3 mois',
-      text: 'Fitora a changé ma vie ! Les plans sont super clairs.',
-      avatar: '👩',
+      name: 'Marie L.',
+      role: 'Perdu 15kg en 3 mois',
+      image: '👩',
+      text: 'Incroyable ! Les plans nutrition IA sont vraiment personnalises. J ai atteint mes objectifs plus vite que prevu.',
       rating: 5
     },
     {
       name: 'Thomas B.',
-      result: '+8kg de muscle',
-      text: 'Programme de musculation au top !',
-      avatar: '👨',
+      role: 'Prise de masse reussie',
+      image: '👨',
+      text: 'L interface est intuitive et le suivi est excellent. Je recommande a 100%',
       rating: 5
     },
     {
-      name: 'Laura K.',
-      result: '-15kg en 4 mois',
-      text: 'Interface intuitive, je recommande !',
-      avatar: '👩',
+      name: 'Sophie M.',
+      role: 'Transformation complete',
+      image: '👩‍🦰',
+      text: 'Le coaching adaptatif m a aide a rester motivee. Les resultats sont la !',
       rating: 5
     }
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 text-white overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 relative overflow-hidden">
       
-      {/* HERO SECTION */}
-      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute w-64 sm:w-96 h-64 sm:h-96 bg-purple-500/20 rounded-full blur-3xl -top-20 -left-20 animate-pulse"></div>
-          <div className="absolute w-64 sm:w-96 h-64 sm:h-96 bg-pink-500/20 rounded-full blur-3xl -bottom-20 -right-20 animate-pulse"></div>
-        </div>
+      {/* Animated background with parallax */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div 
+          className="absolute w-[800px] h-[800px] rounded-full"
+          style={{
+            background: 'radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, transparent 70%)',
+            left: `${mousePosition.x / 30}px`,
+            top: `${mousePosition.y / 30 - scrollY / 5}px`,
+            transition: 'all 0.3s ease-out',
+          }}
+        ></div>
+        <div 
+          className="absolute top-1/4 -left-20 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"
+          style={{ transform: `translateY(${scrollY * 0.3}px)` }}
+        ></div>
+        <div 
+          className="absolute top-1/3 -right-20 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"
+          style={{ transform: `translateY(${scrollY * 0.2}px)` }}
+        ></div>
+        <div 
+          className="absolute -bottom-32 left-1/3 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"
+          style={{ transform: `translateY(${scrollY * 0.1}px)` }}
+        ></div>
+      </div>
 
-        <div className="relative z-10 max-w-6xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+      {/* Animated particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-white rounded-full opacity-20"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animation: `float ${5 + Math.random() * 10}s ease-in-out infinite`,
+              animationDelay: `${Math.random() * 5}s`
+            }}
+          ></div>
+        ))}
+      </div>
+
+      {/* Mesh grid */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMTAgNjAgTSAwIDEwIEwgNjAgMTAgTSAyMCAwIEwgMjAgNjAgTSAwIDIwIEwgNjAgMjAgTSAzMCAwIEwgMzAgNjAgTSAwIDMwIEwgNjAgMzAgTSA0MCAwIEwgNDAgNjAgTSAwIDQwIEwgNjAgNDAgTSA1MCAwIEwgNTAgNjAgTSAwIDUwIEwgNjAgNTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIG9wYWNpdHk9IjAuMDIiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-40"></div>
+
+      {/* Header with glassmorphism */}
+      <header className="relative z-30 backdrop-blur-md bg-white/5 border-b border-white/10 sticky top-0">
+        <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3 group cursor-pointer">
             <div className="relative">
-              <Dumbbell className="w-12 sm:w-16 h-12 sm:h-16 text-purple-400" />
-              <Sparkles className="w-4 sm:w-6 h-4 sm:h-6 text-yellow-400 absolute -top-2 -right-2 animate-ping" />
+              <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl blur-lg opacity-75 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative w-12 h-12 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded-2xl flex items-center justify-center transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
+                <Dumbbell className="w-7 h-7 text-white" />
+              </div>
             </div>
-            <h1 className="text-4xl sm:text-6xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
-              Fitora
-            </h1>
+            <span className="text-3xl font-black text-white tracking-tight">Fitora</span>
           </div>
-
-          <h2 className="text-3xl sm:text-5xl md:text-7xl font-black mb-4 sm:mb-6 leading-tight px-4">
-            Transforme ton corps,
-            <br />
-            <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Transforme ta vie
-            </span>
-          </h2>
-
-          <p className="text-lg sm:text-xl md:text-2xl text-gray-300 mb-8 sm:mb-12 max-w-3xl mx-auto px-4">
-            Rejoins <span className="text-purple-400 font-bold">{activeUsers.toLocaleString()}</span> personnes qui ont atteint leurs objectifs
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12 sm:mb-16 px-4">
-            <Link
-              href="/login"
-              className="group relative w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-bold text-base sm:text-lg hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 sm:gap-3"
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/login')}
+              className="px-6 py-2.5 text-white/80 hover:text-white transition-all font-semibold hover:scale-105"
             >
-              <span>Commencer gratuitement</span>
-              <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform" />
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity -z-10 animate-pulse"></div>
-            </Link>
+              Connexion
+            </button>
+            <button
+              onClick={() => router.push('/signup')}
+              className="group relative px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl transition-all font-semibold overflow-hidden shadow-lg shadow-purple-500/50"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <span className="relative">Commencer</span>
+            </button>
+          </div>
+        </nav>
+      </header>
 
-            <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 border-2 border-purple-400 rounded-full font-bold text-base sm:text-lg hover:bg-purple-400/10 transition-all duration-300 flex items-center justify-center gap-2">
-              <Play className="w-4 sm:w-5 h-4 sm:h-5" />
-              Voir la démo
+      {/* Hero Section */}
+      <section className="relative z-20 container mx-auto px-4 pt-20 pb-32">
+        <div className="max-w-6xl mx-auto">
+          
+          {/* Badge */}
+          <div className="flex justify-center mb-8">
+            <div className="group inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 backdrop-blur-xl rounded-full border border-white/10 hover:border-white/20 transition-all cursor-default hover:scale-105">
+              <div className="relative">
+                <Sparkles className="w-4 h-4 text-yellow-400 animate-pulse" />
+                <div className="absolute inset-0 bg-yellow-400 blur-md opacity-50 group-hover:opacity-75 transition-opacity"></div>
+              </div>
+              <span className="text-white/90 text-sm font-semibold">IA + Coaching personnalise</span>
+              <div className="flex gap-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse animation-delay-150"></div>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse animation-delay-300"></div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Main Title */}
+          <div className="text-center mb-10">
+            <h1 
+              className="text-6xl sm:text-7xl lg:text-8xl font-black text-white mb-6 leading-[1.1] tracking-tight"
+              style={{ transform: `translateY(${scrollY * 0.1}px)` }}
+            >
+              Transforme ton corps,
+              <br />
+              <span className="relative inline-block mt-2">
+                <span className="absolute -inset-2 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 blur-3xl opacity-50 animate-pulse-slow"></span>
+                <span className="relative bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 text-transparent bg-clip-text animate-gradient">
+                  Transforme ta vie
+                </span>
+              </span>
+            </h1>
+            
+            <p className="text-2xl sm:text-3xl text-white/60 mb-4 font-light animate-fade-in">
+              Rejoins{' '}
+              <span className="relative inline-block group cursor-default">
+                <span className="text-white font-bold group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-pink-400 group-hover:to-purple-400 group-hover:bg-clip-text transition-all">
+                  12 547 personnes
+                </span>
+                <svg className="absolute -bottom-1 left-0 w-full opacity-0 group-hover:opacity-100 transition-opacity" height="4" viewBox="0 0 200 4" fill="none">
+                  <path d="M0 2C60 2 140 2 200 2" stroke="url(#gradient)" strokeWidth="4" strokeLinecap="round"/>
+                  <defs>
+                    <linearGradient id="gradient" x1="0" y1="0" x2="200" y2="0">
+                      <stop offset="0%" stopColor="#ec4899" />
+                      <stop offset="50%" stopColor="#a855f7" />
+                      <stop offset="100%" stopColor="#06b6d4" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </span>
+            </p>
+            <p className="text-xl text-white/50">qui ont atteint leurs objectifs</p>
+          </div>
+          
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
+            <button
+              onClick={() => router.push('/signup')}
+              className="group relative px-10 py-5 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-purple-500/50 overflow-hidden hover:scale-105"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative flex items-center gap-3">
+                <Sparkles className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                Commencer gratuitement
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+              </div>
+            </button>
+            
+            <button
+              onClick={() => router.push('/login')}
+              className="group px-10 py-5 bg-white/5 backdrop-blur-xl hover:bg-white/10 text-white rounded-2xl font-bold text-lg transition-all border-2 border-white/10 hover:border-white/30 hover:scale-105"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Heart className="w-5 h-5 text-pink-400 group-hover:scale-125 transition-transform" />
+                </div>
+                Voir comment ca marche
+              </div>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8 max-w-4xl mx-auto px-4">
-            <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 sm:p-6 border border-white/10 hover:border-purple-400/50 transition-all hover:scale-105">
-              <Flame className="w-6 sm:w-8 h-6 sm:h-8 text-orange-400 mx-auto mb-2 sm:mb-3" />
-              <p className="text-2xl sm:text-4xl font-black text-purple-400 mb-1 sm:mb-2">{caloriesBurned.toLocaleString()}</p>
-              <p className="text-xs sm:text-sm text-gray-400">Calories brûlées</p>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 sm:p-6 border border-white/10 hover:border-pink-400/50 transition-all hover:scale-105">
-              <Users className="w-6 sm:w-8 h-6 sm:h-8 text-pink-400 mx-auto mb-2 sm:mb-3" />
-              <p className="text-2xl sm:text-4xl font-black text-pink-400 mb-1 sm:mb-2">{activeUsers.toLocaleString()}</p>
-              <p className="text-xs sm:text-sm text-gray-400">Utilisateurs actifs</p>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 sm:p-6 border border-white/10 hover:border-blue-400/50 transition-all hover:scale-105">
-              <Trophy className="w-6 sm:w-8 h-6 sm:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" />
-              <p className="text-2xl sm:text-4xl font-black text-blue-400 mb-1 sm:mb-2">{workoutsCompleted.toLocaleString()}</p>
-              <p className="text-xs sm:text-sm text-gray-400">Séances complétées</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FEATURES */}
-      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 relative">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12 sm:mb-16">
-            <h2 className="text-3xl sm:text-5xl font-black mb-3 sm:mb-4">
-              Pourquoi choisir <span className="text-purple-400">Fitora</span> ?
-            </h2>
-            <p className="text-lg sm:text-xl text-gray-400">Tout ce dont tu as besoin pour réussir</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="group relative bg-white/5 backdrop-blur-lg rounded-2xl p-5 sm:p-6 border border-white/10 hover:border-purple-400/50 transition-all duration-300 hover:scale-105 cursor-pointer"
+          {/* Trust badges */}
+          <div className="flex flex-wrap items-center justify-center gap-4 text-white/50 text-sm mb-20">
+            {[
+              { icon: CheckCircle2, text: 'Sans engagement', color: 'text-green-400' },
+              { icon: Zap, text: 'Resultats rapides', color: 'text-yellow-400' },
+              { icon: Star, text: '100% personnalise', color: 'text-purple-400' },
+              { icon: Shield, text: 'Donnees securisees', color: 'text-blue-400' }
+            ].map((badge, i) => (
+              <div 
+                key={i}
+                className="group flex items-center gap-2 bg-white/5 px-4 py-2.5 rounded-full backdrop-blur-sm border border-white/10 hover:border-white/30 transition-all cursor-default hover:scale-110"
               >
-                <div className={`w-12 sm:w-14 h-12 sm:h-14 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform`}>
-                  <feature.icon className="w-6 sm:w-7 h-6 sm:h-7 text-white" />
-                </div>
-
-                <h3 className="text-lg sm:text-xl font-bold mb-2">{feature.title}</h3>
-                <p className="text-sm sm:text-base text-gray-400 mb-3 sm:mb-4">{feature.description}</p>
-                <p className="text-xs sm:text-sm font-semibold text-purple-400">{feature.stat}</p>
+                <badge.icon className={`w-4 h-4 ${badge.color} group-hover:scale-125 transition-transform`} />
+                <span className="group-hover:text-white transition-colors">{badge.text}</span>
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* TESTIMONIALS */}
-      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12 sm:mb-16">
-            <h2 className="text-3xl sm:text-5xl font-black mb-3 sm:mb-4">
-              Ils ont réussi avec <span className="text-purple-400">Fitora</span>
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {testimonials.map((testimonial, index) => (
-              <div
-                key={index}
-                className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 sm:p-8 border border-white/10 hover:border-purple-400/50 transition-all hover:scale-105"
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {[
+              { icon: Flame, value: '1 250 847', label: 'Calories brulees', gradient: 'from-orange-500 to-red-500', bg: 'from-orange-500/10 to-red-500/10' },
+              { icon: Users, value: '12 547', label: 'Utilisateurs actifs', gradient: 'from-purple-500 to-pink-500', bg: 'from-purple-500/10 to-pink-500/10' },
+              { icon: TrendingUp, value: '45 821', label: 'Seances completees', gradient: 'from-cyan-500 to-blue-500', bg: 'from-cyan-500/10 to-blue-500/10' }
+            ].map((stat, i) => (
+              <div 
+                key={i}
+                className="group relative"
+                style={{ animationDelay: `${i * 100}ms` }}
               >
-                <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-                  <div className="text-4xl sm:text-5xl">{testimonial.avatar}</div>
-                  <div>
-                    <h4 className="font-bold text-base sm:text-lg">{testimonial.name}</h4>
-                    <p className="text-purple-400 font-semibold text-sm sm:text-base">{testimonial.result}</p>
+                <div className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 hover:border-white/30 transition-all duration-500 transform-gpu hover:scale-105 hover:-translate-y-2">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${stat.bg} rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+                  
+                  <div className="relative z-10">
+                    <div className="flex justify-center mb-6">
+                      <div className="relative">
+                        <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} rounded-2xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity`}></div>
+                        <div className={`relative w-16 h-16 bg-gradient-to-br ${stat.gradient} rounded-2xl flex items-center justify-center transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-500 shadow-2xl`}>
+                          <stat.icon className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-center">
+                      <div className="text-5xl font-black mb-2">
+                        <span className={`bg-gradient-to-br ${stat.gradient} text-transparent bg-clip-text`}>
+                          {stat.value}
+                        </span>
+                      </div>
+                      <div className="text-white/60 font-medium">{stat.label}</div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex gap-1 mb-3 sm:mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 sm:w-5 h-4 sm:h-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-
-                <p className="text-sm sm:text-base text-gray-300 italic">{testimonial.text}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* PRICING */}
-      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-black/20">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="mb-8 sm:mb-12">
-            <h2 className="text-3xl sm:text-5xl font-black mb-3 sm:mb-4">
-              Un seul plan. <span className="text-purple-400">Tout inclus.</span>
+      {/* Features Section */}
+      <section className="relative z-20 py-32 bg-white/5 backdrop-blur-sm border-y border-white/10">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 mb-6">
+              <Zap className="w-4 h-4 text-yellow-400" />
+              <span className="text-white/70 text-sm font-semibold">Fonctionnalites</span>
+            </div>
+            <h2 className="text-5xl font-black text-white mb-4">
+              Tout ce dont tu as besoin
+            </h2>
+            <p className="text-xl text-white/60 max-w-2xl mx-auto">
+              Des outils puissants pour transformer ton corps et ta sante
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+            {features.map((feature, i) => (
+              <div
+                key={i}
+                className="group relative bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-white/30 transition-all duration-500 hover:scale-105"
+                style={{ animationDelay: `${i * 50}ms` }}
+              >
+                <div className={`absolute inset-0 bg-gradient-to-br ${feature.bgColor} rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+                
+                <div className="relative z-10">
+                  <div className={`w-14 h-14 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg`}>
+                    <feature.icon className="w-7 h-7 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
+                  <p className="text-white/60 leading-relaxed mb-4">{feature.description}</p>
+                  <div className="flex items-center text-white/40 group-hover:text-white/60 transition-colors text-sm font-semibold">
+                    <span>En savoir plus</span>
+                    <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="relative z-20 py-32">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 mb-6">
+              <Star className="w-4 h-4 text-yellow-400" />
+              <span className="text-white/70 text-sm font-semibold">Temoignages</span>
+            </div>
+            <h2 className="text-5xl font-black text-white mb-4">
+              Ils ont reussi leur transformation
             </h2>
           </div>
 
-          <div className="relative bg-gradient-to-br from-purple-600 to-pink-600 rounded-3xl p-8 sm:p-12 shadow-2xl hover:scale-105 transition-all">
-            <div className="absolute -top-3 sm:-top-4 -right-3 sm:-right-4 bg-yellow-400 text-black px-4 sm:px-6 py-2 rounded-full font-bold text-xs sm:text-sm animate-bounce">
-              🔥 -50% Offre Launch
-            </div>
-
-            <Crown className="w-12 sm:w-16 h-12 sm:h-16 text-yellow-400 mx-auto mb-4 sm:mb-6" />
-            
-            <h3 className="text-3xl sm:text-4xl font-black mb-3 sm:mb-4">Fitora Premium</h3>
-            
-            <div className="mb-6 sm:mb-8">
-              <div className="text-4xl sm:text-6xl font-black mb-2">
-                9,99€
-                <span className="text-xl sm:text-2xl text-purple-200">/mois</span>
+          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {testimonials.map((testimonial, i) => (
+              <div
+                key={i}
+                className="group bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 hover:border-white/30 transition-all hover:scale-105"
+              >
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-2xl">
+                    {testimonial.image}
+                  </div>
+                  <div>
+                    <div className="font-bold text-white">{testimonial.name}</div>
+                    <div className="text-white/60 text-sm">{testimonial.role}</div>
+                  </div>
+                </div>
+                <div className="flex gap-1 mb-4">
+                  {[...Array(testimonial.rating)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                  ))}
+                </div>
+                <p className="text-white/70 leading-relaxed">{testimonial.text}</p>
               </div>
-              <p className="text-purple-200 line-through text-lg sm:text-xl">19,99€/mois</p>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="relative z-20 py-32">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto text-center bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-16 border border-white/20 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-pink-500/20 opacity-50"></div>
+            
+            <div className="relative z-10">
+              <h2 className="text-5xl font-black text-white mb-6">
+                Pret a commencer ?
+              </h2>
+              <p className="text-2xl text-white/70 mb-10">
+                Rejoins la communaute et transforme-toi des aujourd hui
+              </p>
+              
+              <button
+                onClick={() => router.push('/signup')}
+                className="group inline-flex items-center gap-3 px-12 py-6 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white rounded-2xl font-bold text-xl transition-all shadow-2xl hover:shadow-purple-500/50 hover:scale-105"
+              >
+                <Sparkles className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
+                Creer mon compte gratuit
+                <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+              </button>
+              
+              <p className="text-white/50 text-sm mt-6">
+                Aucune carte bancaire requise • Annule a tout moment • Donnees securisees
+              </p>
             </div>
-
-            <ul className="space-y-3 sm:space-y-4 mb-8 sm:mb-10 text-left max-w-md mx-auto">
-              {[
-                'Plans personnalisés illimités',
-                'Suivi nutrition complet',
-                '500+ exercices vidéo HD',
-                'Badges gamifiés',
-                'Support prioritaire 24/7'
-              ].map((item, index) => (
-                <li key={index} className="flex items-center gap-2 sm:gap-3">
-                  <Check className="w-5 sm:w-6 h-5 sm:h-6 flex-shrink-0 text-yellow-400" />
-                  <span className="text-base sm:text-lg">{item}</span>
-                </li>
-              ))}
-            </ul>
-
-            <Link
-              href="/login"
-              className="inline-block px-8 sm:px-12 py-4 sm:py-5 bg-white text-purple-600 rounded-full font-black text-lg sm:text-xl hover:shadow-2xl transition-all duration-300 hover:scale-110"
-            >
-              Commencer maintenant 🚀
-            </Link>
           </div>
         </div>
       </section>
 
-      {/* FINAL CTA */}
-      <section className="py-16 sm:py-32 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl sm:text-6xl font-black mb-4 sm:mb-6 leading-tight">
-            Prêt à devenir la <span className="text-purple-400">meilleure version</span> de toi-même ?
-          </h2>
-          
-          <Link
-            href="/login"
-            className="inline-block group relative px-10 sm:px-16 py-5 sm:py-6 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-black text-xl sm:text-2xl hover:shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 hover:scale-110"
-          >
-            <span className="flex items-center gap-2 sm:gap-3">
-              Rejoins Fitora maintenant 🚀
-              <ArrowRight className="w-5 sm:w-6 h-5 sm:h-6 group-hover:translate-x-2 transition-transform" />
-            </span>
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full blur-2xl opacity-50 group-hover:opacity-75 transition-opacity -z-10 animate-pulse"></div>
-          </Link>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8 border-t border-white/10">
-        <div className="max-w-6xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-2 mb-4 sm:mb-6">
-            <Dumbbell className="w-6 sm:w-8 h-6 sm:h-8 text-purple-400" />
-            <span className="text-xl sm:text-2xl font-black">Fitora</span>
+      {/* Footer */}
+      <footer className="relative z-20 py-12 border-t border-white/10">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-xl flex items-center justify-center">
+                <Dumbbell className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-xl font-black text-white">Fitora</span>
+            </div>
+            
+            <div className="text-white/50 text-sm text-center">
+              © 2025 Fitora. Tous droits reserves.
+            </div>
+            
+            <div className="flex items-center gap-6 text-white/50 text-sm">
+              <a href="#" className="hover:text-white transition-colors">Confidentialite</a>
+              <a href="#" className="hover:text-white transition-colors">Conditions</a>
+              <a href="#" className="hover:text-white transition-colors">Contact</a>
+            </div>
           </div>
-          
-          <p className="text-gray-400 mb-4 sm:mb-6 text-sm sm:text-base">
-            Transforme ton corps, transforme ta vie.
-          </p>
-
-          <p className="text-gray-600 text-xs sm:text-sm">
-            © 2025 Fitora. Tous droits réservés.
-          </p>
         </div>
       </footer>
+
+      {/* CSS */}
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.2; }
+          50% { transform: translateY(-20px) rotate(180deg); opacity: 0.5; }
+        }
+
+        @keyframes gradient {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+
+        @keyframes pulse-slow {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 0.8; }
+        }
+
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-gradient {
+          background-size: 200% auto;
+          animation: gradient 3s linear infinite;
+        }
+
+        .animate-pulse-slow {
+          animation: pulse-slow 4s ease-in-out infinite;
+        }
+
+        .animate-fade-in {
+          animation: fade-in 1s ease-out;
+        }
+
+        .animation-delay-150 {
+          animation-delay: 150ms;
+        }
+
+        .animation-delay-300 {
+          animation-delay: 300ms;
+        }
+
+        .transform-gpu {
+          transform: translateZ(0);
+          backface-visibility: hidden;
+        }
+      `}</style>
     </div>
   )
 }
