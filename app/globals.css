@@ -2,38 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Reset complet */
+/* Reset complet pour mobile */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Fix iPhone avec encoche */
+/* Fix iPhone avec encoche - Force le remplissage total */
 html {
   height: 100%;
+  width: 100%;
+  position: fixed;
+  overflow: hidden;
   -webkit-text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
   padding: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
-  height: 100%;
-  background: #0f172a;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  position: fixed;
+  overflow-y: auto;
   overflow-x: hidden;
+  background: #0f172a;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Enlever l'espace blanc iOS */
+/* Forcer le remplissage sur iOS */
 @supports (-webkit-touch-callout: none) {
-  body {
-    min-height: -webkit-fill-available;
+  html, body {
+    height: -webkit-fill-available;
   }
+}
+
+/* Container principal */
+#__next,
+main {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+}
+
+/* Fix pour les inputs sur mobile */
+input,
+textarea,
+select {
+  font-size: 16px !important;
 }
