@@ -159,8 +159,7 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 relative overflow-hidden">
-      
+    <div className="min-h-screen min-h-[100dvh] bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 relative overflow-hidden">
       {/* Animated background with parallax */}
       <div className="absolute inset-0 overflow-hidden">
         <div 
@@ -205,36 +204,37 @@ export default function LandingPage() {
       {/* Mesh grid */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMTAgNjAgTSAwIDEwIEwgNjAgMTAgTSAyMCAwIEwgMjAgNjAgTSAwIDIwIEwgNjAgMjAgTSAzMCAwIEwgMzAgNjAgTSAwIDMwIEwgNjAgMzAgTSA0MCAwIEwgNDAgNjAgTSAwIDQwIEwgNjAgNDAgTSA1MCAwIEwgNTAgNjAgTSAwIDUwIEwgNjAgNTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIG9wYWNpdHk9IjAuMDIiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-40"></div>
 
-      {/* Header with glassmorphism */}
-      <header className="relative z-30 backdrop-blur-md bg-white/5 border-b border-white/10 sticky top-0">
-        <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 group cursor-pointer">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl blur-lg opacity-75 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative w-12 h-12 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded-2xl flex items-center justify-center transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
-                <Dumbbell className="w-7 h-7 text-white" />
-              </div>
-            </div>
-            <span className="text-3xl font-black text-white tracking-tight">Fitora</span>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push('/login')}
-              className="px-6 py-2.5 text-white/80 hover:text-white transition-all font-semibold hover:scale-105"
-            >
-              Connexion
-            </button>
-            <button
-              onClick={() => router.push('/signup')}
-              className="group relative px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl transition-all font-semibold overflow-hidden shadow-lg shadow-purple-500/50"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <span className="relative">Commencer</span>
-            </button>
-          </div>
-        </nav>
-      </header>
+{/* Header with glassmorphism */}
+<header className="relative z-30 backdrop-blur-md bg-white/5 border-b border-white/10 sticky top-0">
+  <div className="safe-top"></div>
+  <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="flex items-center gap-3 group cursor-pointer">
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl blur-lg opacity-75 group-hover:opacity-100 transition-opacity"></div>
+        <div className="relative w-12 h-12 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded-2xl flex items-center justify-center transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
+          <Dumbbell className="w-7 h-7 text-white" />
+        </div>
+      </div>
+      <span className="text-3xl font-black text-white tracking-tight">Fitora</span>
+    </div>
+    
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => router.push('/login')}
+        className="px-6 py-2.5 text-white/80 hover:text-white transition-all font-semibold hover:scale-105"
+      >
+        Connexion
+      </button>
+      <button
+        onClick={() => router.push('/signup')}
+        className="group relative px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl transition-all font-semibold overflow-hidden shadow-lg shadow-purple-500/50"
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <span className="relative">Commencer</span>
+      </button>
+    </div>
+  </nav>
+</header>
 
       {/* Hero Section */}
       <section className="relative z-20 container mx-auto px-4 pt-20 pb-32">
